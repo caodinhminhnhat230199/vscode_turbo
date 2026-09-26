@@ -1,0 +1,239 @@
+{
+  "name": "codepulse",
+  "displayName": "CodePulse",
+  "description": "Diagnose and reduce latency in navigation/search workflows, warmup projects, and local indexing.",
+  "version": "0.1.0",
+  "publisher": "codepulse",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codepulse/codepulse"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "CodePulse operates in a restricted mode in untrusted workspaces: external child process execution (ripgrep, git CLI) is disabled, falling back to pure JavaScript search and built-in VS Code APIs."
+    }
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codepulse-container",
+          "title": "CodePulse",
+          "icon": "$(pulse)"
+        }
+      ]
+    },
+    "views": {
+      "codepulse-container": [
+        {
+          "type": "webview",
+          "id": "codepulse.dashboardView",
+          "name": "CodePulse Dashboard"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "codePulse.openDashboard",
+        "title": "CodePulse: Open Dashboard",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.analyzeWorkspace",
+        "title": "CodePulse: Analyze Workspace Diagnostics",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.runBenchmark",
+        "title": "CodePulse: Run Latency Benchmark",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.cancelBenchmark",
+        "title": "CodePulse: Cancel Latency Benchmark",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.warmupProject",
+        "title": "CodePulse: Warmup Project",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.pauseWarmup",
+        "title": "CodePulse: Pause Warmup",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.resumeWarmup",
+        "title": "CodePulse: Resume Warmup",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.rebuildIndex",
+        "title": "CodePulse: Rebuild Project Index",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.clearIndex",
+        "title": "CodePulse: Clear Index",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.pauseIndexing",
+        "title": "CodePulse: Pause Indexing",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.resumeIndexing",
+        "title": "CodePulse: Resume Indexing",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.quickSearch",
+        "title": "CodePulse: Fast Quick Search",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.fastDefinition",
+        "title": "CodePulse: Fast Go to Definition",
+        "category": "CodePulse"
+      },
+      {
+        "command": "codePulse.fastReferences",
+        "title": "CodePulse: Fast Find References",
+        "category": "CodePulse"
+      }
+    ],
+    "configuration": {
+      "title": "CodePulse",
+      "properties": {
+        "codePulse.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable CodePulse extension."
+        },
+        "codePulse.logging.level": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "default": "info",
+          "description": "CodePulse logging level."
+        },
+        "codePulse.diagnostics.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable workspace performance diagnostics."
+        },
+        "codePulse.diagnostics.slowThresholdMs": {
+          "type": "number",
+          "default": 500,
+          "description": "Threshold in ms to flag navigation requests as slow."
+        },
+        "codePulse.index.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable local symbol and file indexing."
+        },
+        "codePulse.index.generatedFiles": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to index generated files."
+        },
+        "codePulse.index.maxFileSizeBytes": {
+          "type": "number",
+          "default": 1048576,
+          "description": "Maximum file size to index in bytes (default 1MB)."
+        },
+        "codePulse.warmup.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable background project warmup."
+        },
+        "codePulse.warmup.onStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run warmup automatically on workspace startup."
+        },
+        "codePulse.warmup.concurrency": {
+          "type": "number",
+          "default": 2,
+          "description": "Concurrent files to warm up in background."
+        },
+        "codePulse.warmup.useGitChanges": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prioritize git changed files during warmup."
+        },
+        "codePulse.warmup.useRecentFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prioritize recently visited files during warmup."
+        },
+        "codePulse.search.useRipgrep": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use ripgrep for fast text search."
+        },
+        "codePulse.navigation.mode": {
+          "type": "string",
+          "enum": [
+            "native",
+            "hybrid",
+            "codepulse"
+          ],
+          "default": "native",
+          "description": "Navigation engine mode."
+        },
+        "codePulse.navigation.trackHistory": {
+          "type": "boolean",
+          "default": true,
+          "description": "Record navigation history for predictive warmup."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build:prod",
+    "compile": "tsc -p ./ --noEmit",
+    "watch:tsc": "tsc -w -p ./ --noEmit",
+    "build": "node esbuild.js",
+    "build:prod": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "lint": "eslint src --ext ts",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test": "npm run compile && npm run test:unit",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.14.1",
+    "@typescript-eslint/parser": "^7.14.1",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.9.9",
+    "typescript": "^5.5.2",
+    "vitest": "^2.1.8"
+  }
+}
