@@ -1,10 +1,11 @@
-import { CodePulseEvents } from './eventTypes';
+import { VsTurboEvents } from './eventTypes';
+import { IEventBus } from '../interfaces/IEventBus';
 
 type EventCallback<T> = (data: T) => void;
 
 type AnyEventCallback = (data: any) => void;
 
-export class EventBus {
+export class EventBus implements IEventBus {
   private static instance: EventBus | null = null;
   private listeners: Map<string, Set<AnyEventCallback>> = new Map();
 
@@ -15,9 +16,9 @@ export class EventBus {
     return EventBus.instance;
   }
 
-  public on<K extends keyof CodePulseEvents>(
+  public on<K extends keyof VsTurboEvents>(
     event: K,
-    callback: EventCallback<CodePulseEvents[K]>
+    callback: EventCallback<VsTurboEvents[K]>
   ): () => void {
     const key = event as string;
     let set = this.listeners.get(key);
@@ -32,9 +33,9 @@ export class EventBus {
     };
   }
 
-  public off<K extends keyof CodePulseEvents>(
+  public off<K extends keyof VsTurboEvents>(
     event: K,
-    callback: EventCallback<CodePulseEvents[K]>
+    callback: EventCallback<VsTurboEvents[K]>
   ): void {
     const set = this.listeners.get(event as string);
     if (set) {
@@ -42,7 +43,7 @@ export class EventBus {
     }
   }
 
-  public emit<K extends keyof CodePulseEvents>(event: K, data: CodePulseEvents[K]): void {
+  public emit<K extends keyof VsTurboEvents>(event: K, data: VsTurboEvents[K]): void {
     const set = this.listeners.get(event as string);
     if (set) {
       for (const callback of set) {

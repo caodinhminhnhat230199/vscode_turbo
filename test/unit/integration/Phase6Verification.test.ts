@@ -114,7 +114,7 @@ describe('P6.12 — Phase 6 Optimization Engine Verification', () => {
     const coldFindings = LanguageRulesEvaluator.evaluateBenchmark(coldResult);
     expect(coldFindings).toHaveLength(1);
     expect(coldFindings[0].id).toBe('LANGUAGE_001:definition');
-    expect(coldFindings[0].recommendation?.type).toBe('codePulseSetting');
+    expect(coldFindings[0].recommendation?.type).toBe('vsTurboSetting');
 
     // Warm persistent slow
     const slowResult: BenchmarkResult = {
@@ -133,7 +133,7 @@ describe('P6.12 — Phase 6 Optimization Engine Verification', () => {
     const slowFindings = LanguageRulesEvaluator.evaluateBenchmark(slowResult);
     expect(slowFindings).toHaveLength(1);
     expect(slowFindings[0].id).toBe('LANGUAGE_002:references');
-    expect(slowFindings[0].recommendation?.changes?.[0].section).toBe('codePulse.navigation.mode');
+    expect(slowFindings[0].recommendation?.changes?.[0].section).toBe('vsturbo.navigation.mode');
     expect(slowFindings[0].recommendation?.changes?.[0].newValue).toBe('hybrid');
   });
 

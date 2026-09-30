@@ -145,16 +145,16 @@ describe('P3.16 — Phase 3 End-to-End Verification', () => {
     const execSpy = vi.spyOn(vscode.commands, 'executeCommand');
 
     await WebviewMessageRouter.handleMessage({ type: 'REBUILD_INDEX' });
-    expect(execSpy).toHaveBeenCalledWith('codePulse.rebuildIndex');
+    expect(execSpy).toHaveBeenCalledWith('vsturbo.rebuildIndex');
 
     await WebviewMessageRouter.handleMessage({ type: 'CLEAR_INDEX' });
-    expect(execSpy).toHaveBeenCalledWith('codePulse.clearIndex');
+    expect(execSpy).toHaveBeenCalledWith('vsturbo.clearIndex');
 
     await WebviewMessageRouter.handleMessage({ type: 'PAUSE_INDEX' });
-    expect(execSpy).toHaveBeenCalledWith('codePulse.pauseIndexing');
+    expect(execSpy).toHaveBeenCalledWith('vsturbo.pauseIndexing');
 
     await WebviewMessageRouter.handleMessage({ type: 'RESUME_INDEX' });
-    expect(execSpy).toHaveBeenCalledWith('codePulse.resumeIndexing');
+    expect(execSpy).toHaveBeenCalledWith('vsturbo.resumeIndexing');
   });
 
   it('executes clearIndex and rebuildIndex commands successfully', async () => {
@@ -164,13 +164,13 @@ describe('P3.16 — Phase 3 End-to-End Verification', () => {
     await indexEngine.initialize([tempWorkspace]);
     expect(await indexEngine.getStore().getFileCount()).toBe(2);
 
-    await vscode.commands.executeCommand('codePulse.clearIndex');
+    await vscode.commands.executeCommand('vsturbo.clearIndex');
     expect(stateStore.getState().indexStatus.indexedFiles).toBe(0);
 
-    await vscode.commands.executeCommand('codePulse.pauseIndexing');
+    await vscode.commands.executeCommand('vsturbo.pauseIndexing');
     expect(stateStore.getState().indexStatus.status).toBe('paused');
 
-    await vscode.commands.executeCommand('codePulse.resumeIndexing');
+    await vscode.commands.executeCommand('vsturbo.resumeIndexing');
     expect(stateStore.getState().indexStatus.status).toBe('idle');
   });
 });

@@ -63,7 +63,7 @@ describe('P2.11 — Phase 2 End-to-End Verification', () => {
       await applyRecommendationService.applyRecommendation(langFinding.recommendation, {
         skipPrompt: true,
       });
-      const applied = vscode.workspace.getConfiguration('codePulse').get('navigation.mode');
+      const applied = vscode.workspace.getConfiguration('vsturbo').get('navigation.mode');
       expect(applied).toBe('hybrid');
     }
   });
@@ -75,13 +75,13 @@ describe('P2.11 — Phase 2 End-to-End Verification', () => {
       type: 'RUN_BENCHMARK',
       payload: { operation: 'workspaceSymbols', iterations: 5 },
     });
-    expect(execSpy).toHaveBeenCalledWith('codePulse.runBenchmark', 'workspaceSymbols', 5);
+    expect(execSpy).toHaveBeenCalledWith('vsturbo.runBenchmark', 'workspaceSymbols', 5);
 
     await WebviewMessageRouter.handleMessage({
       type: 'CANCEL_BENCHMARK',
       payload: { operation: 'workspaceSymbols' },
     });
-    expect(execSpy).toHaveBeenCalledWith('codePulse.cancelBenchmark', 'workspaceSymbols');
+    expect(execSpy).toHaveBeenCalledWith('vsturbo.cancelBenchmark', 'workspaceSymbols');
   });
 
   it('registers codePulse.cancelBenchmark and cancels active runner', async () => {

@@ -95,20 +95,53 @@ describe('Phase 10: Product Hardening & Enterprise Security', () => {
         type: 'RUN_BENCHMARK',
         payload: { operation: 'definition', iterations: 10 },
       });
-      expect(execSpy).toHaveBeenCalledWith('codePulse.runBenchmark', 'definition', 10);
+      expect(execSpy).toHaveBeenCalledWith('vsturbo.runBenchmark', 'definition', 10);
 
       // 3. out-of-range benchmark iterations clamped to default 5
       await WebviewMessageRouter.handleMessage({
         type: 'RUN_BENCHMARK',
         payload: { operation: 'invalid-op', iterations: 999999 },
       });
-      expect(execSpy).toHaveBeenCalledWith('codePulse.runBenchmark', 'definition', 5);
+      expect(execSpy).toHaveBeenCalledWith('vsturbo.runBenchmark', 'definition', 5);
 
       // 4. empty recommendation ID ignored
       await WebviewMessageRouter.handleMessage({
         type: 'APPLY_RECOMMENDATION',
         payload: { recommendationId: '' },
       });
+
+      // 5. UPDATE_CONFIG updates workspace configuration
+      const updateSpy = vi.fn().mockResolvedValue(undefined);
+      const configSpy = vi.spyOn(vscode.workspace, 'getConfiguration').mockReturnValue({
+        update: updateSpy,
+        get: vi.fn(),
+      } as any);
+
+      await WebviewMessageRouter.handleMessage({
+        type: 'UPDATE_CONFIG',
+        payload: { key: 'vsturbo.search.keymap', value: 'androidStudio' },
+      });
+      expect(updateSpy).toHaveBeenCalledWith(
+        'search.keymap',
+        'androidStudio',
+        vscode.ConfigurationTarget.Global
+      );
+      configSpy.mockRestore();
+
+      // 6. OPEN_KEYBINDINGS delegates to openGlobalKeybindings
+      await WebviewMessageRouter.handleMessage({
+        type: 'OPEN_KEYBINDINGS',
+      });
+      expect(execSpy).toHaveBeenCalledWith(
+        'workbench.action.openGlobalKeybindings',
+        '@ext:kcevib.vsturbo'
+      );
+
+      // 7. APPLY_ALL_RECOMMENDATIONS routes to vsturbo.applyAllRecommendations
+      await WebviewMessageRouter.handleMessage({
+        type: 'APPLY_ALL_RECOMMENDATIONS',
+      });
+      expect(execSpy).toHaveBeenCalledWith('vsturbo.applyAllRecommendations');
 
       execSpy.mockRestore();
     });

@@ -14,11 +14,27 @@ interface PersistedSchema {
   references?: Record<string, ReferenceRecord[]>;
 }
 
+function isSubsequence(query: string, target: string): boolean {
+  let q = 0;
+  let t = 0;
+  while (q < query.length && t < target.length) {
+    if (query.charCodeAt(q) === target.charCodeAt(t)) {
+      q++;
+    }
+    t++;
+  }
+  return q === query.length;
+}
+
 export class PersistentIndexStore implements IndexStore {
   private initialized = false;
   private readonly schemaVersion = 1;
-  private inTransaction = false;
+  private transactionDepth = 0;
   private isDirty = false;
+  private mutationVersion = 0;
+  private flushTimer: NodeJS.Timeout | undefined;
+  private flushQueue: Promise<void> = Promise.resolve();
+  private readonly flushDelayMs = 200;
 
   private filesById = new Map<string, FileRecord>();
   private fileIdByPath = new Map<string, string>();
@@ -33,13 +49,11 @@ export class PersistentIndexStore implements IndexStore {
     }
 
     const dir = path.dirname(this.dbFilePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    await fs.promises.mkdir(dir, { recursive: true });
 
     if (fs.existsSync(this.dbFilePath)) {
       try {
-        const raw = fs.readFileSync(this.dbFilePath, 'utf8');
+        const raw = await fs.promises.readFile(this.dbFilePath, 'utf8');
         const data: PersistedSchema = JSON.parse(raw);
 
         // Schema validation & migration
@@ -79,11 +93,11 @@ export class PersistentIndexStore implements IndexStore {
           `Index database corruption detected at ${this.dbFilePath}. Recovering...`,
           err
         );
-        this.handleCorruption();
+        await this.handleCorruption();
       }
     } else {
       // Fresh database
-      await this.flushToDisk();
+      await this.enqueueFlush(true);
     }
 
     this.initialized = true;
@@ -93,8 +107,11 @@ export class PersistentIndexStore implements IndexStore {
     if (!this.initialized) {
       return;
     }
+    this.cancelScheduledFlush();
     if (this.isDirty) {
-      await this.flushToDisk();
+      await this.enqueueFlush();
+    } else {
+      await this.flushQueue;
     }
     this.initialized = false;
   }
@@ -150,6 +167,55 @@ export class PersistentIndexStore implements IndexStore {
   public async getAllFiles(): Promise<FileRecord[]> {
     this.assertInitialized();
     return Array.from(this.filesById.values()).map((f) => ({ ...f }));
+  }
+
+  public async searchFiles(
+    query: string,
+    options?: {
+      limit?: number;
+      pathFilter?: string;
+      extFilter?: string;
+      workspaceRoots?: string[];
+    }
+  ): Promise<FileRecord[]> {
+    this.assertInitialized();
+    const limit = options?.limit ?? 100;
+    const lowerQuery = query.toLowerCase().trim();
+    const lowerPath = options?.pathFilter?.toLowerCase();
+    const lowerExt = options?.extFilter?.toLowerCase();
+    const roots = options?.workspaceRoots?.map((r) => r.replace(/\\/g, '/').toLowerCase());
+
+    const results: FileRecord[] = [];
+    for (const file of this.filesById.values()) {
+      if (results.length >= limit) {
+        break;
+      }
+      if (roots && roots.length > 0 && !roots.some((r) => file.path.toLowerCase().startsWith(r))) {
+        continue;
+      }
+      if (lowerPath && !file.relativePath.toLowerCase().includes(lowerPath)) {
+        continue;
+      }
+      if (lowerExt) {
+        const ext = file.path.split('.').pop()?.toLowerCase();
+        if (ext !== lowerExt) {
+          continue;
+        }
+      }
+      if (!lowerQuery) {
+        results.push({ ...file });
+        continue;
+      }
+      const name = file.path.split('/').pop()?.toLowerCase() ?? '';
+      if (
+        name.includes(lowerQuery) ||
+        file.relativePath.toLowerCase().includes(lowerQuery) ||
+        isSubsequence(lowerQuery, name)
+      ) {
+        results.push({ ...file });
+      }
+    }
+    return results;
   }
 
   public async getFileCount(): Promise<number> {
@@ -257,7 +323,9 @@ export class PersistentIndexStore implements IndexStore {
 
   public async clear(): Promise<void> {
     this.clearInMemory();
-    await this.flushToDisk();
+    this.markDirty();
+    this.cancelScheduledFlush();
+    await this.enqueueFlush();
   }
 
   public async getStats(): Promise<IndexStoreStats> {
@@ -287,27 +355,59 @@ export class PersistentIndexStore implements IndexStore {
 
   public async runTransaction<T>(action: () => Promise<T>): Promise<T> {
     this.assertInitialized();
-    this.inTransaction = true;
+    this.transactionDepth++;
     try {
-      const result = await action();
-      if (this.isDirty) {
-        await this.flushToDisk();
-      }
-      return result;
+      return await action();
     } finally {
-      this.inTransaction = false;
+      this.transactionDepth--;
+      if (this.transactionDepth === 0 && this.isDirty) {
+        this.cancelScheduledFlush();
+        await this.enqueueFlush();
+      }
     }
   }
 
   private markDirty(): void {
     this.isDirty = true;
-    if (!this.inTransaction) {
-      // Async flush when not inside a transaction batch
-      void this.flushToDisk();
+    this.mutationVersion++;
+    if (this.transactionDepth === 0) {
+      this.scheduleFlush();
     }
   }
 
+  private scheduleFlush(): void {
+    this.cancelScheduledFlush();
+    this.flushTimer = setTimeout(async () => {
+      this.flushTimer = undefined;
+      try {
+        await this.enqueueFlush();
+      } catch (error) {
+        logger.error('Failed to persist project index', error);
+      }
+    }, this.flushDelayMs);
+  }
+
+  private cancelScheduledFlush(): void {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = undefined;
+    }
+  }
+
+  private enqueueFlush(force = false): Promise<void> {
+    const next = this.flushQueue
+      .catch(() => undefined)
+      .then(async () => {
+        if (force || this.isDirty) {
+          await this.flushToDisk();
+        }
+      });
+    this.flushQueue = next;
+    return next;
+  }
+
   private async flushToDisk(): Promise<void> {
+    const versionToPersist = this.mutationVersion;
     const filesObj: Record<string, FileRecord> = {};
     for (const [id, f] of this.filesById.entries()) {
       filesObj[id] = f;
@@ -331,17 +431,20 @@ export class PersistentIndexStore implements IndexStore {
       references: referencesObj,
     };
 
-    const tempPath = `${this.dbFilePath}.${Date.now()}.tmp`;
+    const tempPath = `${this.dbFilePath}.${process.pid}.${versionToPersist}.${Date.now()}.tmp`;
     const json = JSON.stringify(schema, null, 2);
 
     try {
-      fs.writeFileSync(tempPath, json, 'utf8');
-      fs.renameSync(tempPath, this.dbFilePath);
-      this.isDirty = false;
+      await fs.promises.writeFile(tempPath, json, 'utf8');
+      await fs.promises.rename(tempPath, this.dbFilePath);
+      this.isDirty = this.mutationVersion !== versionToPersist;
+      if (this.isDirty && this.transactionDepth === 0) {
+        this.scheduleFlush();
+      }
     } catch (err) {
       if (fs.existsSync(tempPath)) {
         try {
-          fs.unlinkSync(tempPath);
+          await fs.promises.unlink(tempPath);
         } catch {
           // ignore
         }
@@ -350,20 +453,22 @@ export class PersistentIndexStore implements IndexStore {
     }
   }
 
-  private handleCorruption(): void {
+  private async handleCorruption(): Promise<void> {
     try {
       const backupPath = `${this.dbFilePath}.corrupted.${Date.now()}`;
-      fs.renameSync(this.dbFilePath, backupPath);
+      await fs.promises.rename(this.dbFilePath, backupPath);
       logger.warn(`Corrupted index file backed up to ${backupPath}`);
     } catch {
       // ignore
     }
     this.clearInMemory();
-    void this.flushToDisk();
+    this.isDirty = true;
+    this.mutationVersion++;
+    await this.enqueueFlush();
 
     try {
       vscode.window.showWarningMessage(
-        'CodePulse: Corrupted index database was detected and automatically recovered.'
+        'VS Turbo: Corrupted index database was detected and automatically recovered.'
       );
       stateStore.updateIndexStatus({ status: 'idle', indexedFiles: 0, symbolCount: 0 });
     } catch {

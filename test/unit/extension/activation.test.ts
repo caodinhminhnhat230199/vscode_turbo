@@ -64,12 +64,17 @@ describe('Extension Activation Baseline', () => {
     Object.assign(context, { storageUri: vscode.Uri.file(storagePath) });
     activate(context);
 
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    // Wait for indexing to complete instead of fixed flaky sleep
+    const startWait = Date.now();
+    while ((await indexEngine.getStore().getFileCount()) === 0 && Date.now() - startWait < 5000) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
 
     expect(indexEngine.getStore().isInitialized()).toBe(true);
     expect(await indexEngine.getStore().getFileCount()).toBe(1);
 
     await indexEngine.dispose();
+    indexEngine.resume();
     fs.rmSync(workspacePath, { recursive: true, force: true });
     fs.rmSync(storagePath, { recursive: true, force: true });
   });

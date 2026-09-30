@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { RipgrepEngine } from '../../../src/search/engine/RipgrepEngine';
+import { parseVimgrepLine, RipgrepEngine } from '../../../src/search/engine/RipgrepEngine';
 
 describe('RipgrepEngine', () => {
   let tempDir: string;
@@ -68,5 +68,18 @@ describe('RipgrepEngine', () => {
     });
 
     expect(results).toHaveLength(0);
+  });
+
+  it('parses absolute Windows paths emitted by rg --vimgrep', () => {
+    const parsed = parseVimgrepLine(
+      'D:\\workspace\\src\\UserService.ts:7:14:export class UserService {'
+    );
+
+    expect(parsed).toEqual({
+      filePath: 'D:\\workspace\\src\\UserService.ts',
+      line: 7,
+      column: 14,
+      lineText: 'export class UserService {',
+    });
   });
 });

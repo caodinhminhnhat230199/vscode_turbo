@@ -10,7 +10,7 @@ export interface RecentFileEntry {
   lastOpenedAt: number;
 }
 
-const STORAGE_KEY = 'codePulse.recentFiles';
+const STORAGE_KEY = 'vsturbo.recentFiles';
 const DEFAULT_MAX_ITEMS = 20;
 
 export class RecentFilesStrategy extends Disposable implements WarmupStrategy {

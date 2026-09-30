@@ -7,7 +7,12 @@ export interface SettingChange {
 }
 
 export type RecommendationType =
-  'workspaceSetting' | 'codePulseSetting' | 'manualAction' | 'reindex' | 'restartLanguageServer';
+  | 'workspaceSetting'
+  | 'vsTurboSetting'
+  | 'codePulseSetting'
+  | 'manualAction'
+  | 'reindex'
+  | 'restartLanguageServer';
 
 export interface Recommendation {
   id: string;

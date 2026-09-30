@@ -8,3 +8,4 @@ out
 .env
 .env.*
 *.pem
+**/.dart_tool/extension_discovery/

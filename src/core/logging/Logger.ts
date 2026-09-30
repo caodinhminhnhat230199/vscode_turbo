@@ -5,6 +5,14 @@ export interface LogOutputChannel {
   show?(preserveFocus?: boolean): void;
 }
 
+export interface IScopedLogger {
+  trace(message: string, context?: Record<string, unknown>): void;
+  debug(message: string, context?: Record<string, unknown>): void;
+  info(message: string, context?: Record<string, unknown>): void;
+  warn(message: string, context?: Record<string, unknown>): void;
+  error(message: string, error?: unknown, context?: Record<string, unknown>): void;
+}
+
 export class Logger {
   private static instance: Logger | null = null;
   private channel: LogOutputChannel | null = null;
@@ -29,12 +37,34 @@ export class Logger {
     return this.currentLevel;
   }
 
+  public trace(message: string, context?: Record<string, unknown>): void {
+    this.log('trace', message, context);
+  }
+
   public debug(message: string, context?: Record<string, unknown>): void {
     this.log('debug', message, context);
   }
 
   public info(message: string, context?: Record<string, unknown>): void {
     this.log('info', message, context);
+  }
+
+  public createChildLogger(
+    moduleName: string,
+    baseContext?: Record<string, unknown>
+  ): IScopedLogger {
+    return {
+      trace: (msg: string, ctx?: Record<string, unknown>) =>
+        this.trace(`[${moduleName}] ${msg}`, { ...baseContext, ...ctx }),
+      debug: (msg: string, ctx?: Record<string, unknown>) =>
+        this.debug(`[${moduleName}] ${msg}`, { ...baseContext, ...ctx }),
+      info: (msg: string, ctx?: Record<string, unknown>) =>
+        this.info(`[${moduleName}] ${msg}`, { ...baseContext, ...ctx }),
+      warn: (msg: string, ctx?: Record<string, unknown>) =>
+        this.warn(`[${moduleName}] ${msg}`, { ...baseContext, ...ctx }),
+      error: (msg: string, err?: unknown, ctx?: Record<string, unknown>) =>
+        this.error(`[${moduleName}] ${msg}`, err, { ...baseContext, ...ctx }),
+    };
   }
 
   public warn(message: string, context?: Record<string, unknown>): void {

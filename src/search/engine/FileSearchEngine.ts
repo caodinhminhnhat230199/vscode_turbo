@@ -61,10 +61,20 @@ export function computeFuzzyScore(target: string, query: string): FuzzyScore {
 }
 
 export class FileSearchEngine {
-  private store: IndexStore;
+  private storeProvider: () => IndexStore;
 
-  constructor(store?: IndexStore) {
-    this.store = store ?? indexEngine.getStore();
+  constructor(storeOrProvider?: IndexStore | (() => IndexStore)) {
+    if (typeof storeOrProvider === 'function') {
+      this.storeProvider = storeOrProvider;
+    } else if (storeOrProvider) {
+      this.storeProvider = () => storeOrProvider;
+    } else {
+      this.storeProvider = () => indexEngine.getStore();
+    }
+  }
+
+  private get store(): IndexStore {
+    return this.storeProvider();
   }
 
   public async search(query: string, options?: SearchOptions): Promise<FileSearchResult[]> {
@@ -79,11 +89,24 @@ export class FileSearchEngine {
     // 1. Fetch file candidates from IndexStore or fallback
     let files: Array<{ fsPath: string; relativePath: string }> = [];
     try {
-      const records = await this.store.getAllFiles();
-      files = records.map((r) => ({
-        fsPath: r.path,
-        relativePath: r.relativePath,
-      }));
+      if (typeof this.store.searchFiles === 'function') {
+        const records = await this.store.searchFiles(trimmed, {
+          limit: limit * 4,
+          pathFilter: options?.pathFilter,
+          extFilter: options?.extFilter,
+          workspaceRoots: options?.workspaceRoots,
+        });
+        files = records.map((r) => ({
+          fsPath: r.path,
+          relativePath: r.relativePath,
+        }));
+      } else {
+        const records = await this.store.getAllFiles();
+        files = records.map((r) => ({
+          fsPath: r.path,
+          relativePath: r.relativePath,
+        }));
+      }
     } catch {
       // Fallback
       files = [];
@@ -112,6 +135,34 @@ export class FileSearchEngine {
 
       if (SearchExcludes.isExcluded(file.fsPath, { includeIgnored: options?.includeIgnored })) {
         continue;
+      }
+
+      // Filter by pathFilter
+      if (
+        options?.pathFilter &&
+        !file.relativePath.toLowerCase().includes(options.pathFilter.toLowerCase())
+      ) {
+        continue;
+      }
+
+      // Filter by extFilter
+      const ext = path.extname(file.fsPath).replace(/^\./, '').toLowerCase();
+      if (options?.extFilter && ext !== options.extFilter.toLowerCase()) {
+        continue;
+      }
+
+      // Filter by langFilter
+      if (options?.langFilter) {
+        const lang = options.langFilter.toLowerCase();
+        const matchesLang =
+          ext === lang ||
+          (lang === 'typescript' && (ext === 'ts' || ext === 'tsx')) ||
+          (lang === 'javascript' && (ext === 'js' || ext === 'jsx')) ||
+          (lang === 'python' && ext === 'py') ||
+          (lang === 'dart' && ext === 'dart');
+        if (!matchesLang) {
+          continue;
+        }
       }
 
       const fileName = path.basename(file.fsPath);

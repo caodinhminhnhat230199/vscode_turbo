@@ -1,9 +1,10 @@
 import { SearchResult, SearchCategory } from '../models/SearchResult';
 
 const CATEGORY_ORDER: Record<SearchCategory, number> = {
-  file: 0,
-  symbol: 1,
-  text: 2,
+  class: 0,
+  file: 1,
+  symbol: 2,
+  text: 3,
 };
 
 export class SearchResultMerger {

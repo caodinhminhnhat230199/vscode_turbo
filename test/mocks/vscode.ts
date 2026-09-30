@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+
 export class Uri {
   private constructor(
     public readonly scheme: string,
@@ -109,35 +111,168 @@ export const window = {
   showInformationMessage: async () => {},
   showWarningMessage: async () => {},
   showErrorMessage: async () => {},
-  showTextDocument: async (_docOrUri: any, _options?: any) => ({}),
+  showTextDocument: async (docOrUri: any, options?: any) => {
+    const doc = docOrUri && docOrUri.uri ? docOrUri : { uri: docOrUri };
+    const editor = {
+      document: doc,
+      selection: options?.selection ?? new Range(0, 0, 0, 0),
+      revealRange: (_range: any, _type?: any) => {},
+    };
+    window.activeTextEditor = editor as any;
+    return editor;
+  },
   createQuickPick: <T extends any = any>() => {
     let items: T[] = [];
+    let selectedItems: T[] = [];
+    let value = '';
+    let busy = false;
+    let visible = false;
+    let title = '';
+    let buttons: any[] = [];
     const acceptEmitter = new EventEmitter<void>();
     const hideEmitter = new EventEmitter<void>();
+    const changeValueEmitter = new EventEmitter<string>();
+    const changeSelectionEmitter = new EventEmitter<T[]>();
+    const changeActiveEmitter = new EventEmitter<T[]>();
+    const triggerButtonEmitter = new EventEmitter<any>();
+    const triggerItemButtonEmitter = new EventEmitter<any>();
     return {
-      title: '',
       placeholder: '',
       matchOnDescription: false,
       matchOnDetail: false,
-      selectedItems: [] as T[],
+      set title(t: string) {
+        title = t;
+      },
+      get title() {
+        return title;
+      },
+      set buttons(b: any[]) {
+        buttons = b;
+      },
+      get buttons() {
+        return buttons;
+      },
+      set value(v: string) {
+        value = v;
+      },
+      get value() {
+        return value;
+      },
+      set busy(b: boolean) {
+        busy = b;
+      },
+      get busy() {
+        return busy;
+      },
       set items(val: T[]) {
         items = val;
       },
       get items() {
         return items;
       },
+      set selectedItems(val: T[]) {
+        selectedItems = val;
+        changeSelectionEmitter.fire(val);
+      },
+      get selectedItems() {
+        return selectedItems;
+      },
       onDidAccept: acceptEmitter.event,
       onDidHide: hideEmitter.event,
-      show: () => {},
-      hide: () => {},
-      dispose: () => {},
+      onDidChangeValue: changeValueEmitter.event,
+      onDidChangeSelection: changeSelectionEmitter.event,
+      onDidChangeActive: changeActiveEmitter.event,
+      onDidTriggerButton: triggerButtonEmitter.event,
+      onDidTriggerItemButton: triggerItemButtonEmitter.event,
+      show: () => {
+        visible = true;
+      },
+      hide: () => {
+        if (visible) {
+          visible = false;
+          hideEmitter.fire();
+        }
+      },
+      dispose: () => {
+        if (visible) {
+          visible = false;
+          hideEmitter.fire();
+        }
+        acceptEmitter.dispose();
+        hideEmitter.dispose();
+        changeValueEmitter.dispose();
+        changeSelectionEmitter.dispose();
+        changeActiveEmitter.dispose();
+        triggerButtonEmitter.dispose();
+        triggerItemButtonEmitter.dispose();
+      },
+      _fireChangeValue: (val: string) => {
+        value = val;
+        changeValueEmitter.fire(val);
+      },
+      _fireChangeActive: (items: T[]) => {
+        changeActiveEmitter.fire(items);
+      },
+      _fireAccept: () => {
+        acceptEmitter.fire();
+      },
+      _fireTriggerButton: (btn: any) => {
+        triggerButtonEmitter.fire(btn);
+      },
+      _fireTriggerItemButton: (item: any, button: any) => {
+        triggerItemButtonEmitter.fire({ item, button });
+      },
+      _isVisible: () => visible,
     };
   },
-  activeTextEditor: undefined as { document: { uri: Uri } } | undefined,
+  createWebviewPanel: (viewType: string, title: string, showOptions: any, options?: any) => {
+    let html = '';
+    const messageEmitter = new EventEmitter<any>();
+    const disposeEmitter = new EventEmitter<void>();
+    let disposed = false;
+    const postedMessages: any[] = [];
+    const webview = {
+      set html(val: string) {
+        html = val;
+      },
+      get html() {
+        return html;
+      },
+      cspSource: 'https://test.vscode-resource.vscode-cdn.net',
+      asWebviewUri: (uri: Uri) => Uri.parse(`vscode-webview-resource://${uri.fsPath}`),
+      onDidReceiveMessage: messageEmitter.event,
+      _postedMessages: postedMessages,
+      postMessage: async (msg: any) => {
+        postedMessages.push(msg);
+        return true;
+      },
+      _simulateMessage: (msg: any) => messageEmitter.fire(msg),
+    };
+    const panel = {
+      viewType,
+      title,
+      showOptions,
+      options,
+      webview,
+      onDidDispose: disposeEmitter.event,
+      reveal: () => {},
+      dispose: () => {
+        disposed = true;
+        disposeEmitter.fire();
+        messageEmitter.dispose();
+        disposeEmitter.dispose();
+      },
+      get disposed() {
+        return disposed;
+      },
+    };
+    return panel;
+  },
+  activeTextEditor: undefined as { document: { uri: Uri }; selection?: any } | undefined,
   onDidChangeActiveTextEditor: onDidChangeActiveTextEditorEmitter.event,
   onDidChangeTextEditorSelection: onDidChangeTextEditorSelectionEmitter.event,
   onDidChangeWindowState: onDidChangeWindowStateEmitter.event,
-  _setActiveTextEditor: (editor?: { document: { uri: Uri } }) => {
+  _setActiveTextEditor: (editor?: { document: { uri: Uri }; selection?: any }) => {
     window.activeTextEditor = editor;
     onDidChangeActiveTextEditorEmitter.fire(editor);
   },
@@ -165,6 +300,12 @@ export const commands = {
 
 const configStore: Record<string, any> = {};
 const inspectStore: Record<string, Record<string, any>> = {};
+const configUpdates: Array<{
+  section?: string;
+  key: string;
+  value: any;
+  target?: any;
+}> = [];
 
 export const workspace = {
   _setConfig: (sectionOrKey: string, value: any) => {
@@ -179,7 +320,9 @@ export const workspace = {
   _clearConfigs: () => {
     Object.keys(configStore).forEach((k) => delete configStore[k]);
     Object.keys(inspectStore).forEach((k) => delete inspectStore[k]);
+    configUpdates.length = 0;
   },
+  _getConfigUpdates: () => [...configUpdates],
   isTrusted: true,
   _setIsTrusted: (trusted: boolean) => {
     workspace.isTrusted = trusted;
@@ -201,8 +344,9 @@ export const workspace = {
       }
       return undefined;
     },
-    update: async (key: string, value: any, _target?: any) => {
+    update: async (key: string, value: any, target?: any) => {
       const fullKey = section ? `${section}.${key}` : key;
+      configUpdates.push({ section, key, value, target });
       configStore[fullKey] = value;
       if (section) {
         if (!configStore[section] || typeof configStore[section] !== 'object') {
@@ -216,6 +360,33 @@ export const workspace = {
     dispose: () => {},
   }),
   onDidChangeTextDocument: onDidChangeTextDocumentEmitter.event,
+  openTextDocument: async (uriOrPath: any) => {
+    const fsPath = typeof uriOrPath === 'string' ? uriOrPath : uriOrPath.fsPath;
+    const uri = typeof uriOrPath === 'string' ? Uri.file(uriOrPath) : uriOrPath;
+    let content = '';
+    try {
+      if (fs.existsSync(fsPath)) {
+        content = fs.readFileSync(fsPath, 'utf8');
+      }
+    } catch {
+      // ignore
+    }
+    const lines = content.split(/\r?\n/);
+    return {
+      uri,
+      getText: (range?: Range) => {
+        if (!range) {
+          return content;
+        }
+        return content;
+      },
+      lineCount: lines.length,
+      lineAt: (line: number) => ({
+        text: lines[line] ?? '',
+        range: new Range(line, 0, line, (lines[line] ?? '').length),
+      }),
+    };
+  },
   asRelativePath: (pathOrUri: any) => {
     const p = typeof pathOrUri === 'string' ? pathOrUri : (pathOrUri?.fsPath ?? '');
     return p.replace(/\\/g, '/').split('/').slice(-2).join('/');
@@ -296,6 +467,59 @@ export class Range {
   }
 }
 
+export class Selection extends Range {
+  public readonly anchor: Position;
+  public readonly active: Position;
+
+  constructor(anchor: Position, active: Position);
+  constructor(anchorLine: number, anchorChar: number, activeLine: number, activeChar: number);
+  constructor(
+    anchorOrLine: Position | number,
+    activeOrChar: Position | number,
+    activeLine?: number,
+    activeChar?: number
+  ) {
+    if (typeof anchorOrLine === 'number') {
+      super(
+        anchorOrLine,
+        activeOrChar as number,
+        activeLine ?? anchorOrLine,
+        activeChar ?? (activeOrChar as number)
+      );
+      this.anchor = new Position(anchorOrLine, activeOrChar as number);
+      this.active = new Position(
+        activeLine ?? anchorOrLine,
+        activeChar ?? (activeOrChar as number)
+      );
+    } else {
+      super(anchorOrLine, activeOrChar as Position);
+      this.anchor = anchorOrLine;
+      this.active = activeOrChar as Position;
+    }
+  }
+}
+
+export const TextEditorRevealType = {
+  Default: 0,
+  InCenter: 1,
+  InCenterIfOutsideViewport: 2,
+  AtTop: 3,
+};
+
+export const ViewColumn = {
+  Active: -1,
+  Beside: -2,
+  One: 1,
+  Two: 2,
+  Three: 3,
+  Four: 4,
+  Five: 5,
+  Six: 6,
+  Seven: 7,
+  Eight: 8,
+  Nine: 9,
+};
+
 export class Location {
   public readonly range: Range;
 
@@ -316,16 +540,44 @@ export const QuickPickItemKind = {
   Default: 0,
 };
 
+export class CancellationError extends Error {
+  constructor(message = 'Canceled') {
+    super(message);
+    this.name = 'CancellationError';
+  }
+}
+
 export class CancellationTokenSource {
+  private _listeners: ((e: any) => any)[] = [];
+
   public token = {
     isCancellationRequested: false,
-    onCancellationRequested: (_cb: any) => ({ dispose: () => {} }),
+    onCancellationRequested: (cb: any) => {
+      this._listeners.push(cb);
+      return {
+        dispose: () => {
+          this._listeners = this._listeners.filter((l) => l !== cb);
+        },
+      };
+    },
   };
+
   public cancel(): void {
-    this.token.isCancellationRequested = true;
+    if (!this.token.isCancellationRequested) {
+      this.token.isCancellationRequested = true;
+      for (const listener of [...this._listeners]) {
+        try {
+          listener(undefined);
+        } catch {
+          // ignore
+        }
+      }
+    }
   }
+
   public dispose(): void {
     this.cancel();
+    this._listeners = [];
   }
 }
 
@@ -335,3 +587,12 @@ export class CancellationTokenSource {
   _exclude?: any,
   _maxResults?: number
 ): Promise<Uri[]> => [];
+
+export class ThemeIcon {
+  public static readonly File = new ThemeIcon('file');
+  public static readonly Folder = new ThemeIcon('folder');
+  constructor(
+    public readonly id: string,
+    public readonly color?: any
+  ) {}
+}

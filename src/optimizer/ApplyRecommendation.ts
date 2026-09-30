@@ -4,13 +4,18 @@ import { SettingsDiff } from './SettingsDiff';
 import { logger } from '../core/logging/Logger';
 import { BenchmarkResult, BenchmarkOperation } from '../benchmark/benchmarkTypes';
 import { BenchmarkDeltaService, BenchmarkComparison } from './BenchmarkDeltaService';
+import { stateStore } from '../core/state/StateStore';
+
+export interface AppliedSettingChange extends SettingChange {
+  resolvedTarget: vscode.ConfigurationTarget;
+}
 
 export interface AppliedSessionRecord {
   id: string;
   recommendationId: string;
   title: string;
   timestamp: number;
-  changes: SettingChange[];
+  changes: AppliedSettingChange[];
   preBenchmark?: BenchmarkResult;
   postBenchmark?: BenchmarkResult;
   comparison?: BenchmarkComparison;
@@ -18,6 +23,7 @@ export interface AppliedSessionRecord {
 
 export interface ApplyRecommendationOptions {
   skipPrompt?: boolean;
+  skipRefresh?: boolean;
   preBenchmark?: BenchmarkResult;
   runBenchmarkFn?: (op: BenchmarkOperation) => Promise<BenchmarkResult | null>;
   benchmarkOperation?: BenchmarkOperation;
@@ -57,6 +63,9 @@ export class ApplyRecommendationService {
         message: 'Recommendation contains no automated configuration changes.',
       };
     }
+    const hasWorkspace =
+      Array.isArray(vscode.workspace.workspaceFolders) &&
+      vscode.workspace.workspaceFolders.length > 0;
 
     // 0. Capture pre-change benchmark if requested
     let preBenchmark = options.preBenchmark;
@@ -81,7 +90,9 @@ export class ApplyRecommendationService {
       const confirmItem = 'Apply Changes';
       const cancelItem = 'Cancel';
       const selection = await vscode.window.showInformationMessage(
-        `CodePulse: Apply optimization "${recommendation.title}"?\n\n${fullDiffText}`,
+        `VS Turbo: Apply optimization "${recommendation.title}"?\n\n${fullDiffText}${
+          hasWorkspace ? '' : '\n\nNo workspace is open, so this will update global user settings.'
+        }`,
         { modal: true },
         confirmItem,
         cancelItem
@@ -96,20 +107,33 @@ export class ApplyRecommendationService {
     }
 
     // 3. Apply changes via VS Code configuration API
-    const appliedChanges: SettingChange[] = [];
+    const appliedChanges: AppliedSettingChange[] = [];
     try {
       for (const change of recommendation.changes) {
         const { baseSection, property } = this.splitSection(change.section);
         const config = vscode.workspace.getConfiguration(baseSection);
 
-        const target =
-          change.target === 'global'
-            ? vscode.ConfigurationTarget.Global
-            : vscode.ConfigurationTarget.Workspace;
+        const target = this.resolveTarget(change.target, hasWorkspace);
+        const effectiveCurrentValue = config.get<unknown>(property);
+        const targetValueBeforeApply = this.getTargetValue(config, property, target);
+        const finalValue = this.mergeSettingValue(
+          effectiveCurrentValue,
+          change.oldValue,
+          change.newValue
+        );
 
-        await config.update(property, change.newValue, target);
-        appliedChanges.push(change);
-        logger.info(`Updated setting ${change.section}`, { newValue: change.newValue });
+        await config.update(property, finalValue, target);
+        appliedChanges.push({
+          ...change,
+          oldValue: targetValueBeforeApply,
+          newValue: finalValue,
+          target:
+            target === vscode.ConfigurationTarget.Global
+              ? 'global'
+              : (change.target ?? 'workspace'),
+          resolvedTarget: target,
+        });
+        logger.info(`Updated setting ${change.section}`, { newValue: finalValue });
       }
 
       // 4. Optionally rerun benchmark post-apply to measure delta
@@ -153,11 +177,22 @@ export class ApplyRecommendationService {
       };
       this.appliedHistory.unshift(record);
 
+      // Immediately remove applied finding from stateStore so UI updates instantly
+      const currentFindings = stateStore.getState().findings;
+      const remainingFindings = currentFindings.filter(
+        (f) => f.recommendation?.id !== recommendation.id
+      );
+      if (remainingFindings.length !== currentFindings.length) {
+        stateStore.updateFindings(remainingFindings);
+      }
+
       // 6. Trigger diagnostics refresh if available
-      try {
-        await vscode.commands.executeCommand('codePulse.analyzeWorkspace');
-      } catch {
-        // analyze command may not yet be triggered
+      if (!options.skipRefresh) {
+        try {
+          await vscode.commands.executeCommand('vsturbo.analyzeWorkspace');
+        } catch {
+          // analyze command may not yet be triggered
+        }
       }
 
       let message = `Successfully applied: ${recommendation.title}`;
@@ -179,6 +214,96 @@ export class ApplyRecommendationService {
     }
   }
 
+  public async applyAll(
+    recommendations: Recommendation[],
+    options: {
+      skipPrompt?: boolean;
+      skipRefresh?: boolean;
+      runBenchmarkFn?: (operation: BenchmarkOperation) => Promise<BenchmarkResult | null>;
+    } = {}
+  ): Promise<{ success: boolean; appliedCount: number; message: string }> {
+    const validRecs = recommendations.filter(
+      (r) => r && Array.isArray(r.changes) && r.changes.length > 0
+    );
+
+    if (validRecs.length === 0) {
+      return {
+        success: false,
+        appliedCount: 0,
+        message: 'No recommendations with automated configuration changes found.',
+      };
+    }
+
+    if (!options.skipPrompt) {
+      const confirmItem = 'Approve All';
+      const cancelItem = 'Cancel';
+      const hasWorkspace =
+        Array.isArray(vscode.workspace.workspaceFolders) &&
+        vscode.workspace.workspaceFolders.length > 0;
+      const scopeDescription = hasWorkspace
+        ? 'this workspace'
+        : 'global user settings because no workspace is open';
+      const selection = (await vscode.window.showInformationMessage(
+        `VS Turbo: Approve and apply all ${validRecs.length} recommendations to ${scopeDescription}?`,
+        { modal: true },
+        confirmItem,
+        cancelItem
+      )) as string | undefined;
+
+      const isConfirmed =
+        selection === confirmItem ||
+        selection === 'Apply All' ||
+        selection === 'OK' ||
+        selection === 'Yes';
+
+      if (!isConfirmed) {
+        return {
+          success: false,
+          appliedCount: 0,
+          message: 'Bulk apply was cancelled by user.',
+        };
+      }
+    }
+
+    let appliedCount = 0;
+    const appliedRecIds = new Set<string>();
+    for (const rec of validRecs) {
+      const res = await this.applyRecommendation(rec, {
+        skipPrompt: true,
+        skipRefresh: true,
+        runBenchmarkFn: options.runBenchmarkFn,
+      });
+      if (res.success) {
+        appliedCount++;
+        appliedRecIds.add(rec.id);
+      }
+    }
+
+    // Immediately remove all successfully applied findings from stateStore
+    const currentFindings = stateStore.getState().findings;
+    const remainingFindings = currentFindings.filter(
+      (f) => !f.recommendation || !appliedRecIds.has(f.recommendation.id)
+    );
+    if (remainingFindings.length !== currentFindings.length) {
+      stateStore.updateFindings(remainingFindings);
+    }
+
+    if (!options.skipRefresh) {
+      try {
+        await vscode.commands.executeCommand('vsturbo.analyzeWorkspace');
+      } catch {
+        // ignore
+      }
+    }
+
+    const message = `Successfully applied ${appliedCount} of ${validRecs.length} recommendations.`;
+    return {
+      success: appliedCount > 0,
+      appliedCount,
+      message,
+    };
+  }
+
   public async undo(
     recordId?: string,
     options: { skipPrompt?: boolean } = {}
@@ -198,7 +323,7 @@ export class ApplyRecommendationService {
     if (!options.skipPrompt) {
       const confirmItem = 'Revert Settings';
       const selection = await vscode.window.showWarningMessage(
-        `CodePulse: Undo "${record.title}" and restore previous settings?`,
+        `VS Turbo: Undo "${record.title}" and restore previous settings?`,
         { modal: true },
         confirmItem,
         'Cancel'
@@ -212,19 +337,14 @@ export class ApplyRecommendationService {
       for (const change of record.changes) {
         const { baseSection, property } = this.splitSection(change.section);
         const config = vscode.workspace.getConfiguration(baseSection);
-        const target =
-          change.target === 'global'
-            ? vscode.ConfigurationTarget.Global
-            : vscode.ConfigurationTarget.Workspace;
-
-        await config.update(property, change.oldValue, target);
+        await config.update(property, change.oldValue, change.resolvedTarget);
         logger.info(`Reverted setting ${change.section}`, { restoredValue: change.oldValue });
       }
 
       this.appliedHistory.splice(recordIndex, 1);
 
       try {
-        await vscode.commands.executeCommand('codePulse.analyzeWorkspace');
+        await vscode.commands.executeCommand('vsturbo.analyzeWorkspace');
       } catch {
         // ignore
       }
@@ -250,6 +370,74 @@ export class ApplyRecommendationService {
       baseSection: section.substring(0, dotIndex),
       property: section.substring(dotIndex + 1),
     };
+  }
+
+  private resolveTarget(
+    requestedTarget: SettingChange['target'],
+    hasWorkspace: boolean
+  ): vscode.ConfigurationTarget {
+    if (requestedTarget === 'global' || !hasWorkspace) {
+      return vscode.ConfigurationTarget.Global;
+    }
+    return vscode.ConfigurationTarget.Workspace;
+  }
+
+  private getTargetValue(
+    config: vscode.WorkspaceConfiguration,
+    property: string,
+    target: vscode.ConfigurationTarget
+  ): unknown {
+    const inspected = config.inspect<unknown>(property);
+    if (inspected) {
+      if (target === vscode.ConfigurationTarget.Global) {
+        return inspected.globalValue;
+      }
+      if (target === vscode.ConfigurationTarget.WorkspaceFolder) {
+        return inspected.workspaceFolderValue;
+      }
+      return inspected.workspaceValue;
+    }
+    return config.get<unknown>(property);
+  }
+
+  private mergeSettingValue(current: unknown, before: unknown, after: unknown): unknown {
+    if (!this.isDictionary(after)) {
+      return after;
+    }
+
+    const currentDictionary = this.isDictionary(current) ? current : {};
+    const beforeDictionary = this.isDictionary(before) ? before : {};
+    return this.applyDictionaryPatch(currentDictionary, beforeDictionary, after);
+  }
+
+  private applyDictionaryPatch(
+    current: Record<string, unknown>,
+    before: Record<string, unknown>,
+    after: Record<string, unknown>
+  ): Record<string, unknown> {
+    const result: Record<string, unknown> = { ...current };
+
+    for (const key of Object.keys(before)) {
+      if (!(key in after)) {
+        delete result[key];
+      }
+    }
+
+    for (const [key, value] of Object.entries(after)) {
+      if (this.isDictionary(value)) {
+        const currentValue = this.isDictionary(result[key]) ? result[key] : {};
+        const beforeValue = this.isDictionary(before[key]) ? before[key] : {};
+        result[key] = this.applyDictionaryPatch(currentValue, beforeValue, value);
+      } else {
+        result[key] = value;
+      }
+    }
+
+    return result;
+  }
+
+  private isDictionary(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 }
 

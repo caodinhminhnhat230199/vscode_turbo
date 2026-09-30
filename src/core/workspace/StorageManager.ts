@@ -11,7 +11,7 @@ export interface StorageMemento {
 export class StorageManager {
   private static instance: StorageManager | null = null;
   private static readonly STORAGE_SCHEMA_VERSION = 1;
-  private static readonly VERSION_KEY = 'codepulse.storage.version';
+  private static readonly VERSION_KEY = 'vsturbo.storage.version';
 
   private workspaceState: StorageMemento | null = null;
   private globalState: StorageMemento | null = null;

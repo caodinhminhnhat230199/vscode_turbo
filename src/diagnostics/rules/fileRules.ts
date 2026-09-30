@@ -75,10 +75,10 @@ export class FileRule002 implements DiagnosticRule {
 
       const recommendation = createRecommendation({
         id: 'REC_EXCESSIVE_GENERATED_FILES',
-        type: 'codePulseSetting',
+        type: 'vsTurboSetting',
         title: 'Deprioritize generated files during warmup',
         description:
-          'Configure CodePulse warmup and indexer to process hand-written files before generated code.',
+          'Configure VS Turbo warmup and indexer to process hand-written files before generated code.',
         safeToAutoApply: true,
         requiresReload: false,
       });

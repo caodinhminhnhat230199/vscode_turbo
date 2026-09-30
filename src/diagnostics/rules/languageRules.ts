@@ -29,20 +29,20 @@ export class LanguageRulesEvaluator {
             ],
             recommendation: createRecommendation({
               id: `REC_WARMUP_${op.toUpperCase()}`,
-              type: 'codePulseSetting',
+              type: 'vsTurboSetting',
               title: 'Enable background project warmup on startup',
               description:
-                'Enable CodePulse background warmup to trigger language server readiness before editing begins.',
+                'Enable VS Turbo background warmup to trigger language server readiness before editing begins.',
               safeToAutoApply: true,
               changes: [
                 {
-                  section: 'codePulse.warmup.enabled',
+                  section: 'vsturbo.warmup.enabled',
                   oldValue: false,
                   newValue: true,
                   description: 'Enable background warmup',
                 },
                 {
-                  section: 'codePulse.warmup.onStartup',
+                  section: 'vsturbo.warmup.onStartup',
                   oldValue: false,
                   newValue: true,
                   description: 'Warm up on workspace startup',
@@ -72,14 +72,13 @@ export class LanguageRulesEvaluator {
             ],
             recommendation: createRecommendation({
               id: `REC_HYBRID_NAV_${op.toUpperCase()}`,
-              type: 'codePulseSetting',
-              title: 'Switch to CodePulse Hybrid Navigation mode',
-              description:
-                'Use CodePulse local fast symbol index alongside native language server.',
+              type: 'vsTurboSetting',
+              title: 'Switch to VS Turbo Hybrid Navigation mode',
+              description: 'Use VS Turbo local fast symbol index alongside native language server.',
               safeToAutoApply: true,
               changes: [
                 {
-                  section: 'codePulse.navigation.mode',
+                  section: 'vsturbo.navigation.mode',
                   oldValue: 'native',
                   newValue: 'hybrid',
                   description: 'Enable hybrid navigation mode',

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { SearchCoordinator, searchCoordinator } from '../engine/SearchCoordinator';
+import { SearchController, searchController } from '../SearchController';
 import { SearchResult, SearchCategory } from '../models/SearchResult';
 
 interface SearchQuickPickItem extends vscode.QuickPickItem {
@@ -7,13 +7,14 @@ interface SearchQuickPickItem extends vscode.QuickPickItem {
 }
 
 const CATEGORY_ICONS: Record<SearchCategory, string> = {
+  class: '$(symbol-class)',
   file: '$(file)',
   symbol: '$(symbol-field)',
   text: '$(search)',
 };
 
 export class SearchQuickPick {
-  public static async show(coordinator: SearchCoordinator = searchCoordinator): Promise<void> {
+  public static async show(controller: SearchController = searchController): Promise<void> {
     const quickPick = vscode.window.createQuickPick<SearchQuickPickItem>();
     quickPick.placeholder = 'Search files, symbols, or text (type f:, s:, or t: to filter)...';
     quickPick.matchOnDescription = true;
@@ -53,10 +54,13 @@ export class SearchQuickPick {
       quickPick.busy = true;
 
       try {
-        const results = await coordinator.searchAll(query, {
-          category,
-          limit: 30,
-          cancellationToken: token,
+        const results = await controller.search({
+          query,
+          mode: category,
+          options: {
+            limit: 30,
+            cancellationToken: token,
+          },
         });
 
         if (token.isCancellationRequested) {
@@ -89,7 +93,7 @@ export class SearchQuickPick {
       }
       // Quick responsiveness with 50ms typing debounce
       debounceTimer = setTimeout(() => {
-        performSearch(value);
+        void performSearch(value);
       }, 50);
     });
 
@@ -98,19 +102,7 @@ export class SearchQuickPick {
       if (selected) {
         const res = selected.searchResult;
         quickPick.hide();
-
-        try {
-          const doc = await vscode.workspace.openTextDocument(res.uri);
-          const line = (res as any).line ?? 0;
-          const col = (res as any).column ?? 0;
-          const pos = new vscode.Position(line, col);
-
-          await vscode.window.showTextDocument(doc, {
-            selection: new vscode.Range(pos, pos),
-          });
-        } catch {
-          // Document opening fallback
-        }
+        await controller.openResult(res);
       }
     });
 

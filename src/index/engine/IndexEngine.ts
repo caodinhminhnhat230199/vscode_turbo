@@ -63,7 +63,7 @@ export class IndexEngine implements vscode.Disposable {
     if (options.store) {
       this.store = options.store;
     } else if (options.storageDir) {
-      const dbPath = path.join(options.storageDir, 'codepulse-index.json');
+      const dbPath = path.join(options.storageDir, 'vsturbo-index.json');
       this.store = new PersistentIndexStore(dbPath);
     } else {
       this.store = new MemoryIndexStore();
@@ -87,7 +87,7 @@ export class IndexEngine implements vscode.Disposable {
     }
 
     if (options.storageDir && !this.store.isInitialized()) {
-      this.store = new PersistentIndexStore(path.join(options.storageDir, 'codepulse-index.json'));
+      this.store = new PersistentIndexStore(path.join(options.storageDir, 'vsturbo-index.json'));
     }
   }
 
@@ -278,9 +278,24 @@ export class IndexEngine implements vscode.Disposable {
       }
 
       const lang = inferLanguageFromPath(normalized);
+      let relativePath = path.basename(normalized);
+      for (const root of this.activeRoots) {
+        const normRoot = root.replace(/\\/g, '/').replace(/\/$/, '');
+        if (normalized.toLowerCase().startsWith(normRoot.toLowerCase() + '/')) {
+          relativePath = normalized.slice(normRoot.length + 1);
+          break;
+        }
+      }
+      if (relativePath === path.basename(normalized) && vscode.workspace.workspaceFolders) {
+        const rel = vscode.workspace.asRelativePath(normalized);
+        if (rel && rel !== normalized) {
+          relativePath = rel.replace(/\\/g, '/');
+        }
+      }
+
       const fileRecord = createFileRecord({
         path: normalized,
-        relativePath: path.basename(normalized),
+        relativePath,
         language: lang,
         size: stat.size,
         mtime: Math.round(stat.mtimeMs),

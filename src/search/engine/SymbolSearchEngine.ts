@@ -9,10 +9,20 @@ import { SearchExcludes } from './SearchExcludes';
 import { SymbolRecord } from '../../index/models/SymbolRecord';
 
 export class SymbolSearchEngine {
-  private store: IndexStore;
+  private storeProvider: () => IndexStore;
 
-  constructor(store?: IndexStore) {
-    this.store = store ?? indexEngine.getStore();
+  constructor(storeOrProvider?: IndexStore | (() => IndexStore)) {
+    if (typeof storeOrProvider === 'function') {
+      this.storeProvider = storeOrProvider;
+    } else if (storeOrProvider) {
+      this.storeProvider = () => storeOrProvider;
+    } else {
+      this.storeProvider = () => indexEngine.getStore();
+    }
+  }
+
+  private get store(): IndexStore {
+    return this.storeProvider();
   }
 
   public async search(query: string, options?: SearchOptions): Promise<SymbolSearchResult[]> {
@@ -24,24 +34,32 @@ export class SymbolSearchEngine {
     const limit = options?.limit ?? 50;
     const cancellationToken = options?.cancellationToken;
 
-    // Fetch all symbols or candidates from store
+    // Fetch candidates using store.searchSymbolsByName
     let symbols: SymbolRecord[] = [];
     try {
-      symbols = await this.store.getAllSymbols();
+      symbols = await this.store.searchSymbolsByName(trimmed, {
+        limit: limit * 4,
+        kind: options?.kindFilter,
+      });
     } catch {
       symbols = [];
     }
 
-    // Cache files lookup for quick path/neighborhood checks
+    // Cache files lookup only for candidate files
     const fileMap = new Map<string, { path: string; relativePath: string }>();
-    try {
-      const files = await this.store.getAllFiles();
-      for (const f of files) {
-        fileMap.set(f.id, { path: f.path, relativePath: f.relativePath });
-      }
-    } catch {
-      // ignore
-    }
+    const neededFileIds = new Set(symbols.map((s) => s.fileId));
+    await Promise.all(
+      Array.from(neededFileIds).map(async (fileId) => {
+        try {
+          const f = await this.store.getFileById(fileId);
+          if (f) {
+            fileMap.set(f.id, { path: f.path, relativePath: f.relativePath });
+          }
+        } catch {
+          // ignore
+        }
+      })
+    );
 
     const results: SymbolSearchResult[] = [];
 
@@ -63,6 +81,35 @@ export class SymbolSearchEngine {
       const fsPath = fileInfo?.path ?? sym.fileId;
       if (SearchExcludes.isExcluded(fsPath, { includeIgnored: options?.includeIgnored })) {
         continue;
+      }
+
+      // Filter by kindFilter
+      if (options?.kindFilter && sym.kind.toLowerCase() !== options.kindFilter.toLowerCase()) {
+        continue;
+      }
+
+      // Filter by pathFilter
+      const relPath = fileInfo?.relativePath ?? path.basename(fsPath);
+      if (
+        options?.pathFilter &&
+        !relPath.toLowerCase().includes(options.pathFilter.toLowerCase())
+      ) {
+        continue;
+      }
+
+      // Filter by extFilter
+      const ext = path.extname(fsPath).replace(/^\./, '').toLowerCase();
+      if (options?.extFilter && ext !== options.extFilter.toLowerCase()) {
+        continue;
+      }
+
+      // Filter by langFilter
+      if (options?.langFilter) {
+        const lang = options.langFilter.toLowerCase();
+        const symLang = (sym.adapterId || '').toLowerCase();
+        if (symLang !== lang && !ext.includes(lang)) {
+          continue;
+        }
       }
 
       const fuzzy = computeFuzzyScore(sym.name, trimmed);
@@ -96,8 +143,6 @@ export class SymbolSearchEngine {
           }
         }
       }
-
-      const relPath = fileInfo?.relativePath ?? path.basename(fsPath);
 
       results.push({
         id: `symbol:${sym.id ?? `${sym.fileId}:${sym.name}:${sym.line}`}`,

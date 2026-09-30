@@ -1,12 +1,12 @@
-import * as vscode from 'vscode';
 import { SearchResult } from '../models/SearchResult';
 import { SearchOptions } from '../models/SearchOptions';
 
 import { FileSearchEngine } from './FileSearchEngine';
 import { SymbolSearchEngine } from './SymbolSearchEngine';
 import { RipgrepEngine } from './RipgrepEngine';
-import { SearchResultMerger } from './SearchResultMerger';
 import { IndexStore } from '../../index/store/IndexStore';
+
+import { SearchService, searchService } from '../SearchService';
 
 export class SearchCoordinator {
   private static instance: SearchCoordinator | null = null;
@@ -14,18 +14,26 @@ export class SearchCoordinator {
   public readonly fileSearchEngine: FileSearchEngine;
   public readonly symbolSearchEngine: SymbolSearchEngine;
   public readonly ripgrepEngine: RipgrepEngine;
+  private service: SearchService;
 
-  public static getInstance(store?: IndexStore): SearchCoordinator {
+  public static getInstance(storeOrProvider?: IndexStore | (() => IndexStore)): SearchCoordinator {
     if (!SearchCoordinator.instance) {
-      SearchCoordinator.instance = new SearchCoordinator(store);
+      SearchCoordinator.instance = new SearchCoordinator(storeOrProvider);
     }
     return SearchCoordinator.instance;
   }
 
-  constructor(store?: IndexStore) {
-    this.fileSearchEngine = new FileSearchEngine(store);
-    this.symbolSearchEngine = new SymbolSearchEngine(store);
+  constructor(storeOrProvider?: IndexStore | (() => IndexStore)) {
+    this.fileSearchEngine = new FileSearchEngine(storeOrProvider);
+    this.symbolSearchEngine = new SymbolSearchEngine(storeOrProvider);
     this.ripgrepEngine = new RipgrepEngine();
+    const provider =
+      typeof storeOrProvider === 'function'
+        ? storeOrProvider
+        : storeOrProvider
+          ? () => storeOrProvider
+          : undefined;
+    this.service = provider ? new SearchService(provider) : searchService;
   }
 
   public async searchAll(
@@ -38,37 +46,10 @@ export class SearchCoordinator {
     }
 
     const category = options?.category ?? 'all';
-
-    // Enrich options with context if not explicitly provided
-    const enrichedOptions: SearchOptions = {
-      ...options,
-      activeFileUri: options?.activeFileUri ?? vscode.window.activeTextEditor?.document.uri,
-      workspaceRoots:
-        options?.workspaceRoots ??
-        vscode.workspace.workspaceFolders?.map((f) => f.uri.fsPath) ??
-        [],
-    };
-
-    if (category === 'file') {
-      return this.fileSearchEngine.search(trimmed, enrichedOptions);
-    }
-    if (category === 'symbol') {
-      return this.symbolSearchEngine.search(trimmed, enrichedOptions);
-    }
-    if (category === 'text') {
-      return this.ripgrepEngine.search(trimmed, enrichedOptions);
-    }
-
-    // Run parallel searches
-    const [files, symbols, text] = await Promise.all([
-      this.fileSearchEngine.search(trimmed, enrichedOptions),
-      this.symbolSearchEngine.search(trimmed, enrichedOptions),
-      this.ripgrepEngine.search(trimmed, enrichedOptions),
-    ]);
-
-    return SearchResultMerger.merge([files, symbols, text], {
-      limit: options?.limit ?? 50,
-      categoryFilter: 'all',
+    return this.service.search({
+      query: trimmed,
+      mode: category,
+      options,
     });
   }
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -16,9 +16,35 @@ describe('PersistentIndexStore', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
+  });
+
+  it('coalesces rapid mutations into one non-blocking disk flush', async () => {
+    const store = new PersistentIndexStore(dbPath);
+    await store.initialize();
+    vi.useFakeTimers();
+
+    for (let i = 0; i < 5; i++) {
+      await store.addFile(
+        createFileRecord({
+          path: `/workspace/file${i}.ts`,
+          relativePath: `file${i}.ts`,
+          language: 'typescript',
+          size: 100,
+          mtime: 1000,
+        })
+      );
+    }
+
+    expect(Object.keys(JSON.parse(fs.readFileSync(dbPath, 'utf8')).files)).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(250);
+    await (store as any).flushQueue;
+    expect(Object.keys(JSON.parse(fs.readFileSync(dbPath, 'utf8')).files)).toHaveLength(5);
+    await store.close();
   });
 
   it('persists records to disk and restores them on subsequent store initialization', async () => {

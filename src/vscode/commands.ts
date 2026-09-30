@@ -9,6 +9,7 @@ import { diagnosticEngine } from '../diagnostics/DiagnosticEngine';
 import { applyRecommendationService } from '../optimizer/ApplyRecommendation';
 import { classifyFile } from '../core/workspace/classification/FileClassifier';
 import { PerformanceFinding } from '../diagnostics/model/Finding';
+import { Recommendation } from '../diagnostics/model/Recommendation';
 import { DetectedProject } from '../core/workspace/detection/ProjectDetector';
 import { BenchmarkOperation, BenchmarkResult } from '../benchmark/benchmarkTypes';
 import { benchmarkRunner } from '../benchmark/BenchmarkRunner';
@@ -21,6 +22,7 @@ import { LanguageRulesEvaluator } from '../diagnostics/rules/languageRules';
 import { indexEngine } from '../index/engine/IndexEngine';
 import { WarmupEngine } from '../warmup/WarmupEngine';
 import { SearchQuickPick } from '../search/ui/SearchQuickPick';
+import { SearchPanel } from '../search/ui/SearchPanel';
 import { definitionEngine } from '../navigation/DefinitionEngine';
 import { referenceEngine } from '../navigation/ReferenceEngine';
 import { ReferencesQuickPick } from '../navigation/ui/ReferencesQuickPick';
@@ -92,7 +94,7 @@ export async function executeBenchmark(
   const op = operation || 'definition';
   logger.info(`Starting benchmark for operation: ${op}`);
   statusBar.setState({ kind: 'benchmarking', operation: op });
-  vscode.window.showInformationMessage(`CodePulse: Running benchmark (${op})...`);
+  vscode.window.showInformationMessage(`VS Turbo: Running benchmark (${op})...`);
 
   try {
     let result: BenchmarkResult;
@@ -135,14 +137,14 @@ export async function executeBenchmark(
 
     statusBar.setState({ kind: 'ready' });
     vscode.window.showInformationMessage(
-      `CodePulse: Benchmark (${op}) complete: P50=${result.p50Ms}ms, P95=${result.p95Ms}ms [${category}]`
+      `VS Turbo: Benchmark (${op}) complete: P50=${result.p50Ms}ms, P95=${result.p95Ms}ms [${category}]`
     );
     return result;
   } catch (err: unknown) {
     statusBar.setState({ kind: 'ready' });
     const msg = err instanceof Error ? err.message : String(err);
     logger.error(`Benchmark failed for ${op}`, err);
-    vscode.window.showErrorMessage(`CodePulse: Benchmark (${op}) failed: ${msg}`);
+    vscode.window.showErrorMessage(`VS Turbo: Benchmark (${op}) failed: ${msg}`);
     return null;
   }
 }
@@ -153,21 +155,21 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     handler: (...args: unknown[]) => Promise<void> | void;
   }> = [
     {
-      command: 'codePulse.openDashboard',
+      command: 'vsturbo.openDashboard',
       handler: async () => {
-        logger.info('Opening CodePulse Dashboard');
-        await vscode.commands.executeCommand('codepulse.dashboardView.focus');
+        logger.info('Opening VS Turbo Dashboard');
+        await vscode.commands.executeCommand('vsturbo.dashboardView.focus');
       },
     },
     {
-      command: 'codePulse.analyzeWorkspace',
+      command: 'vsturbo.analyzeWorkspace',
       handler: async () => {
         logger.info('Analyzing workspace');
         await runWorkspaceAnalysis();
       },
     },
     {
-      command: 'codePulse.applyRecommendation',
+      command: 'vsturbo.applyRecommendation',
       handler: async (recIdOrFinding) => {
         let recommendation;
         if (typeof recIdOrFinding === 'string') {
@@ -188,30 +190,64 @@ export function registerCommands(context: vscode.ExtensionContext): void {
             runBenchmarkFn: async (op) => executeBenchmark(op, 3),
           });
         } else {
-          vscode.window.showWarningMessage('CodePulse: Recommendation not found.');
+          vscode.window.showWarningMessage('VS Turbo: Recommendation not found.');
         }
       },
     },
     {
-      command: 'codePulse.undoRecommendation',
+      command: 'vsturbo.applyAllRecommendations',
+      handler: async () => {
+        const findings = stateStore.getState().findings || [];
+        const recommendations: Recommendation[] = [];
+        for (const f of findings) {
+          if (
+            f.recommendation &&
+            Array.isArray(f.recommendation.changes) &&
+            f.recommendation.changes.length > 0
+          ) {
+            recommendations.push(f.recommendation);
+          }
+        }
+
+        if (recommendations.length === 0) {
+          vscode.window.showInformationMessage('VS Turbo: No recommendations to approve.');
+          return;
+        }
+
+        const result = await applyRecommendationService.applyAll(recommendations, {
+          runBenchmarkFn: async (op) => executeBenchmark(op, 3),
+        });
+
+        if (result.success) {
+          vscode.window.showInformationMessage(`VS Turbo: ${result.message}`);
+        } else if (
+          result.appliedCount === 0 &&
+          result.message !== 'Bulk apply was cancelled by user.'
+        ) {
+          vscode.window.showWarningMessage(`VS Turbo: ${result.message}`);
+        }
+      },
+    },
+    {
+      command: 'vsturbo.undoRecommendation',
       handler: async (recordId) => {
         await applyRecommendationService.undo(typeof recordId === 'string' ? recordId : undefined);
       },
     },
     {
-      command: 'codePulse.ignoreFinding',
+      command: 'vsturbo.ignoreFinding',
       handler: async (findingId) => {
         if (typeof findingId === 'string') {
           const current = stateStore.getState().findings;
           const filtered = current.filter((f) => f.id !== findingId);
           stateStore.updateFindings(filtered);
           logger.info(`Ignored finding ${findingId}`);
-          vscode.window.showInformationMessage('CodePulse: Finding dismissed.');
+          vscode.window.showInformationMessage('VS Turbo: Finding dismissed.');
         }
       },
     },
     {
-      command: 'codePulse.runBenchmark',
+      command: 'vsturbo.runBenchmark',
       handler: async (operation, iterations) => {
         const op = (typeof operation === 'string' ? operation : 'definition') as BenchmarkOperation;
         const it = typeof iterations === 'number' ? iterations : undefined;
@@ -219,84 +255,84 @@ export function registerCommands(context: vscode.ExtensionContext): void {
       },
     },
     {
-      command: 'codePulse.cancelBenchmark',
+      command: 'vsturbo.cancelBenchmark',
       handler: async (operation) => {
         const op = typeof operation === 'string' ? operation : undefined;
         benchmarkRunner.cancel(op);
         statusBar.setState({ kind: 'ready' });
-        vscode.window.showInformationMessage('CodePulse: Benchmark cancelled.');
+        vscode.window.showInformationMessage('VS Turbo: Benchmark cancelled.');
       },
     },
     {
-      command: 'codePulse.warmupProject',
+      command: 'vsturbo.warmupProject',
       handler: async () => {
         logger.info('Triggering project warmup');
         await WarmupEngine.getInstance().startWarmup();
       },
     },
     {
-      command: 'codePulse.pauseWarmup',
+      command: 'vsturbo.pauseWarmup',
       handler: async () => {
         logger.info('Pausing project warmup');
         WarmupEngine.getInstance().pauseWarmup();
       },
     },
     {
-      command: 'codePulse.resumeWarmup',
+      command: 'vsturbo.resumeWarmup',
       handler: async () => {
         logger.info('Resuming project warmup');
         WarmupEngine.getInstance().resumeWarmup();
       },
     },
     {
-      command: 'codePulse.cancelWarmup',
+      command: 'vsturbo.cancelWarmup',
       handler: async () => {
         logger.info('Cancelling project warmup');
         WarmupEngine.getInstance().cancelWarmup();
       },
     },
     {
-      command: 'codePulse.rebuildIndex',
+      command: 'vsturbo.rebuildIndex',
       handler: async () => {
         logger.info('Rebuilding index');
-        vscode.window.showInformationMessage('CodePulse: Rebuilding project index...');
+        vscode.window.showInformationMessage('VS Turbo: Rebuilding project index...');
         const roots = vscode.workspace.workspaceFolders?.map((f) => f.uri.fsPath) ?? [];
         await indexEngine.rebuildIndex(roots);
       },
     },
     {
-      command: 'codePulse.clearIndex',
+      command: 'vsturbo.clearIndex',
       handler: async () => {
         logger.info('Clearing index');
         await indexEngine.clearIndex();
-        vscode.window.showInformationMessage('CodePulse: Project index cleared.');
+        vscode.window.showInformationMessage('VS Turbo: Project index cleared.');
       },
     },
     {
-      command: 'codePulse.pauseIndexing',
+      command: 'vsturbo.pauseIndexing',
       handler: async () => {
         logger.info('Pausing indexing');
         indexEngine.pause();
-        vscode.window.showInformationMessage('CodePulse: Indexing paused.');
+        vscode.window.showInformationMessage('VS Turbo: Indexing paused.');
       },
     },
     {
-      command: 'codePulse.resumeIndexing',
+      command: 'vsturbo.resumeIndexing',
       handler: async () => {
         logger.info('Resuming indexing');
         indexEngine.resume();
-        vscode.window.showInformationMessage('CodePulse: Indexing resumed.');
+        vscode.window.showInformationMessage('VS Turbo: Indexing resumed.');
       },
     },
     {
-      command: 'codePulse.quickSearch',
+      command: 'vsturbo.quickSearch',
       handler: async () => {
-        logger.info('Opening CodePulse Quick Search');
+        logger.info('Opening VS Turbo Quick Search');
         await SearchQuickPick.show();
       },
     },
     {
-      command: 'codePulse.fastDefinition',
+      command: 'vsturbo.fastDefinition',
       handler: async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
@@ -311,12 +347,12 @@ export function registerCommands(context: vscode.ExtensionContext): void {
           mode
         );
         if (!success) {
-          vscode.window.showInformationMessage('CodePulse: No definition found.');
+          vscode.window.showInformationMessage('VS Turbo: No definition found.');
         }
       },
     },
     {
-      command: 'codePulse.fastReferences',
+      command: 'vsturbo.fastReferences',
       handler: async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
@@ -333,11 +369,79 @@ export function registerCommands(context: vscode.ExtensionContext): void {
         await ReferencesQuickPick.show(name, refs);
       },
     },
+    {
+      command: 'vsturbo.searchEverywhere',
+      handler: async () => {
+        await SearchPanel.show(context.extensionUri, configService.getConfig().searchDefaultMode);
+      },
+    },
+    {
+      command: 'vsturbo.searchClass',
+      handler: async () => {
+        await SearchPanel.show(context.extensionUri, 'class');
+      },
+    },
+    {
+      command: 'vsturbo.searchClasses',
+      handler: async () => {
+        await SearchPanel.show(context.extensionUri, 'class');
+      },
+    },
+    {
+      command: 'vsturbo.searchFile',
+      handler: async () => {
+        await SearchPanel.show(context.extensionUri, 'file');
+      },
+    },
+    {
+      command: 'vsturbo.searchFiles',
+      handler: async () => {
+        await SearchPanel.show(context.extensionUri, 'file');
+      },
+    },
+    {
+      command: 'vsturbo.searchSymbol',
+      handler: async () => {
+        await SearchPanel.show(context.extensionUri, 'symbol');
+      },
+    },
+    {
+      command: 'vsturbo.searchSymbols',
+      handler: async () => {
+        await SearchPanel.show(context.extensionUri, 'symbol');
+      },
+    },
+    {
+      command: 'vsturbo.searchText',
+      handler: async () => {
+        await SearchPanel.show(context.extensionUri, 'text');
+      },
+    },
+    {
+      command: 'vsturbo.searchActions',
+      handler: async () => {
+        await vscode.commands.executeCommand('workbench.action.showCommands');
+      },
+    },
+    {
+      command: 'vsturbo.configureSearchShortcuts',
+      handler: async () => {
+        await vscode.commands.executeCommand(
+          'workbench.action.openGlobalKeybindings',
+          '@ext:kcevib.vsturbo'
+        );
+      },
+    },
   ];
 
   for (const { command, handler } of commands) {
     context.subscriptions.push(vscode.commands.registerCommand(command, handler));
+    // Also register legacy codePulse.* alias so existing code/tests never break
+    if (command.startsWith('vsturbo.')) {
+      const legacy = command.replace(/^vsturbo\./, 'codePulse.');
+      context.subscriptions.push(vscode.commands.registerCommand(legacy, handler));
+    }
   }
 
-  logger.debug(`Registered ${commands.length} CodePulse commands`);
+  logger.debug(`Registered ${commands.length} VS Turbo commands`);
 }

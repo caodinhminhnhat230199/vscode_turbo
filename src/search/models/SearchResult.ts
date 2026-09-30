@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-export type SearchCategory = 'file' | 'symbol' | 'text';
+export type SearchCategory = 'file' | 'symbol' | 'class' | 'text';
 
 export interface BaseSearchResult {
   id: string;
@@ -10,6 +10,7 @@ export interface BaseSearchResult {
   label: string;
   description?: string;
   detail?: string;
+  symbolKind?: string;
 }
 
 export interface FileSearchResult extends BaseSearchResult {
@@ -28,6 +29,15 @@ export interface SymbolSearchResult extends BaseSearchResult {
   column: number;
 }
 
+export interface ClassSearchResult extends BaseSearchResult {
+  category: 'class';
+  name: string;
+  kind: string;
+  containerName?: string;
+  line: number;
+  column: number;
+}
+
 export interface TextSearchResult extends BaseSearchResult {
   category: 'text';
   line: number;
@@ -36,4 +46,5 @@ export interface TextSearchResult extends BaseSearchResult {
   matchLength: number;
 }
 
-export type SearchResult = FileSearchResult | SymbolSearchResult | TextSearchResult;
+export type SearchResult =
+  FileSearchResult | SymbolSearchResult | ClassSearchResult | TextSearchResult;

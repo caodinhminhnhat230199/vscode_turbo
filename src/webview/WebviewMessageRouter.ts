@@ -26,7 +26,7 @@ export class WebviewMessageRouter {
           break;
 
         case 'RUN_DIAGNOSTICS':
-          await vscode.commands.executeCommand('codePulse.analyzeWorkspace');
+          await vscode.commands.executeCommand('vsturbo.analyzeWorkspace');
           break;
 
         case 'RUN_BENCHMARK': {
@@ -38,49 +38,49 @@ export class WebviewMessageRouter {
             typeof rawIt === 'number' && Number.isFinite(rawIt) && rawIt > 0 && rawIt <= 50
               ? rawIt
               : 5;
-          await vscode.commands.executeCommand('codePulse.runBenchmark', op, it);
+          await vscode.commands.executeCommand('vsturbo.runBenchmark', op, it);
           break;
         }
 
         case 'CANCEL_BENCHMARK': {
           const rawOp = msg.payload?.operation;
           const op = typeof rawOp === 'string' ? rawOp : undefined;
-          await vscode.commands.executeCommand('codePulse.cancelBenchmark', op);
+          await vscode.commands.executeCommand('vsturbo.cancelBenchmark', op);
           break;
         }
 
         case 'START_WARMUP':
-          await vscode.commands.executeCommand('codePulse.warmupProject');
+          await vscode.commands.executeCommand('vsturbo.warmupProject');
           break;
 
         case 'PAUSE_WARMUP':
-          await vscode.commands.executeCommand('codePulse.pauseWarmup');
+          await vscode.commands.executeCommand('vsturbo.pauseWarmup');
           break;
 
         case 'RESUME_WARMUP':
-          await vscode.commands.executeCommand('codePulse.resumeWarmup');
+          await vscode.commands.executeCommand('vsturbo.resumeWarmup');
           break;
 
         case 'REBUILD_INDEX':
-          await vscode.commands.executeCommand('codePulse.rebuildIndex');
+          await vscode.commands.executeCommand('vsturbo.rebuildIndex');
           break;
 
         case 'CLEAR_INDEX':
-          await vscode.commands.executeCommand('codePulse.clearIndex');
+          await vscode.commands.executeCommand('vsturbo.clearIndex');
           break;
 
         case 'PAUSE_INDEX':
-          await vscode.commands.executeCommand('codePulse.pauseIndexing');
+          await vscode.commands.executeCommand('vsturbo.pauseIndexing');
           break;
 
         case 'RESUME_INDEX':
-          await vscode.commands.executeCommand('codePulse.resumeIndexing');
+          await vscode.commands.executeCommand('vsturbo.resumeIndexing');
           break;
 
         case 'APPLY_RECOMMENDATION': {
           const recId = msg.payload?.recommendationId;
           if (typeof recId === 'string' && recId.trim().length > 0) {
-            await vscode.commands.executeCommand('codePulse.applyRecommendation', recId.trim());
+            await vscode.commands.executeCommand('vsturbo.applyRecommendation', recId.trim());
           } else {
             logger.warn('APPLY_RECOMMENDATION dropped: invalid recommendationId', {
               payload: msg.payload,
@@ -89,10 +89,14 @@ export class WebviewMessageRouter {
           break;
         }
 
+        case 'APPLY_ALL_RECOMMENDATIONS':
+          await vscode.commands.executeCommand('vsturbo.applyAllRecommendations');
+          break;
+
         case 'UNDO_RECOMMENDATION': {
           const recId = msg.payload?.recordId;
           await vscode.commands.executeCommand(
-            'codePulse.undoRecommendation',
+            'vsturbo.undoRecommendation',
             typeof recId === 'string' ? recId.trim() : undefined
           );
           break;
@@ -101,7 +105,7 @@ export class WebviewMessageRouter {
         case 'IGNORE_FINDING': {
           const findingId = msg.payload?.findingId;
           if (typeof findingId === 'string' && findingId.trim().length > 0) {
-            await vscode.commands.executeCommand('codePulse.ignoreFinding', findingId.trim());
+            await vscode.commands.executeCommand('vsturbo.ignoreFinding', findingId.trim());
           } else {
             logger.warn('IGNORE_FINDING dropped: invalid findingId', { payload: msg.payload });
           }
@@ -109,8 +113,33 @@ export class WebviewMessageRouter {
         }
 
         case 'OPEN_SETTINGS':
-          await vscode.commands.executeCommand('workbench.action.openSettings', 'codePulse');
+          await vscode.commands.executeCommand('workbench.action.openSettings', 'vsturbo');
           break;
+
+        case 'OPEN_KEYBINDINGS':
+          await vscode.commands.executeCommand(
+            'workbench.action.openGlobalKeybindings',
+            '@ext:kcevib.vsturbo'
+          );
+          break;
+
+        case 'UPDATE_CONFIG': {
+          const payload = msg.payload as { key?: string; value?: unknown } | undefined;
+          const rawKey = payload?.key;
+          const rawVal = payload?.value;
+          if (typeof rawKey === 'string') {
+            const section = rawKey.startsWith('vsturbo.')
+              ? rawKey.replace(/^vsturbo\./, '')
+              : rawKey.startsWith('codePulse.')
+                ? rawKey.replace(/^codePulse\./, '')
+                : rawKey;
+            await vscode.workspace
+              .getConfiguration('vsturbo')
+              .update(section, rawVal, vscode.ConfigurationTarget.Global);
+            logger.info(`[Webview] Updated setting vsturbo.${section}`, { value: rawVal });
+          }
+          break;
+        }
 
         default:
           logger.warn('Unknown webview message received', { message });

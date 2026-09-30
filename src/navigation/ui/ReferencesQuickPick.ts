@@ -9,7 +9,7 @@ interface ReferenceQuickPickItem extends vscode.QuickPickItem {
 export class ReferencesQuickPick {
   public static async show(symbolName: string, references: ReferenceItem[]): Promise<void> {
     if (references.length === 0) {
-      vscode.window.showInformationMessage(`CodePulse: No references found for "${symbolName}".`);
+      vscode.window.showInformationMessage(`VS Turbo: No references found for "${symbolName}".`);
       return;
     }
 

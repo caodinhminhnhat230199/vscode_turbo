@@ -75,15 +75,15 @@ export class WorkspaceRule002 implements DiagnosticRule {
 
         const recommendation = createRecommendation({
           id: 'REC_WORKSPACE_EXCESSIVE_GENERATED',
-          type: 'codePulseSetting',
+          type: 'vsTurboSetting',
           title: 'Disable indexing of generated files',
           description:
-            'Set codePulse.index.generatedFiles to false to prevent indexing overhead for generated source code.',
+            'Set vsturbo.index.generatedFiles to false to prevent indexing overhead for generated source code.',
           safeToAutoApply: true,
           requiresReload: false,
           changes: [
             {
-              section: 'codePulse.index.generatedFiles',
+              section: 'vsturbo.index.generatedFiles',
               oldValue: true,
               newValue: false,
               description: 'Disable indexing of generated files',

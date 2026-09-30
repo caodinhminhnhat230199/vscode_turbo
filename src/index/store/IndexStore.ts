@@ -28,6 +28,15 @@ export interface IndexStore {
   getFileByPath(path: string): Promise<FileRecord | undefined>;
   deleteFile(fileId: string): Promise<void>;
   getAllFiles(): Promise<FileRecord[]>;
+  searchFiles?(
+    query: string,
+    options?: {
+      limit?: number;
+      pathFilter?: string;
+      extFilter?: string;
+      workspaceRoots?: string[];
+    }
+  ): Promise<FileRecord[]>;
   getFileCount(): Promise<number>;
 
   // Symbol CRUD & Query

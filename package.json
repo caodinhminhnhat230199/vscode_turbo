@@ -1,14 +1,11 @@
 {
-  "name": "codepulse",
-  "displayName": "CodePulse",
-  "description": "Diagnose and reduce latency in navigation/search workflows, warmup projects, and local indexing.",
-  "version": "0.1.0",
-  "publisher": "codepulse",
+  "name": "vsturbo",
+  "displayName": "VS Turbo",
+  "description": "VS Turbo — Diagnose and reduce latency in navigation/search workflows, warmup projects, and local indexing.",
+  "version": "0.4.3",
+  "publisher": "kcevib",
+  "icon": "resources/icon.png",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/codepulse/codepulse"
-  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -23,109 +20,164 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "CodePulse operates in a restricted mode in untrusted workspaces: external child process execution (ripgrep, git CLI) is disabled, falling back to pure JavaScript search and built-in VS Code APIs."
+      "description": "VS Turbo operates in a restricted mode in untrusted workspaces: external child process execution (ripgrep, git CLI) is disabled, falling back to pure JavaScript search and built-in VS Code APIs."
     }
   },
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "codepulse-container",
-          "title": "CodePulse",
-          "icon": "$(pulse)"
+          "id": "vsturbo-container",
+          "title": "VS Turbo",
+          "icon": "resources/activitybar.svg"
         }
       ]
     },
     "views": {
-      "codepulse-container": [
+      "vsturbo-container": [
         {
           "type": "webview",
-          "id": "codepulse.dashboardView",
-          "name": "CodePulse Dashboard"
+          "id": "vsturbo.dashboardView",
+          "name": "VS Turbo Dashboard"
         }
       ]
     },
     "commands": [
       {
-        "command": "codePulse.openDashboard",
-        "title": "CodePulse: Open Dashboard",
-        "category": "CodePulse"
+        "command": "vsturbo.openDashboard",
+        "title": "VS Turbo: Open Dashboard",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.analyzeWorkspace",
-        "title": "CodePulse: Analyze Workspace Diagnostics",
-        "category": "CodePulse"
+        "command": "vsturbo.analyzeWorkspace",
+        "title": "VS Turbo: Analyze Workspace Diagnostics",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.runBenchmark",
-        "title": "CodePulse: Run Latency Benchmark",
-        "category": "CodePulse"
+        "command": "vsturbo.applyAllRecommendations",
+        "title": "VS Turbo: Approve All Recommendations",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.cancelBenchmark",
-        "title": "CodePulse: Cancel Latency Benchmark",
-        "category": "CodePulse"
+        "command": "vsturbo.runBenchmark",
+        "title": "VS Turbo: Run Latency Benchmark",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.warmupProject",
-        "title": "CodePulse: Warmup Project",
-        "category": "CodePulse"
+        "command": "vsturbo.cancelBenchmark",
+        "title": "VS Turbo: Cancel Latency Benchmark",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.pauseWarmup",
-        "title": "CodePulse: Pause Warmup",
-        "category": "CodePulse"
+        "command": "vsturbo.warmupProject",
+        "title": "VS Turbo: Warmup Project",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.resumeWarmup",
-        "title": "CodePulse: Resume Warmup",
-        "category": "CodePulse"
+        "command": "vsturbo.pauseWarmup",
+        "title": "VS Turbo: Pause Warmup",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.rebuildIndex",
-        "title": "CodePulse: Rebuild Project Index",
-        "category": "CodePulse"
+        "command": "vsturbo.resumeWarmup",
+        "title": "VS Turbo: Resume Warmup",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.clearIndex",
-        "title": "CodePulse: Clear Index",
-        "category": "CodePulse"
+        "command": "vsturbo.rebuildIndex",
+        "title": "VS Turbo: Rebuild Project Index",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.pauseIndexing",
-        "title": "CodePulse: Pause Indexing",
-        "category": "CodePulse"
+        "command": "vsturbo.clearIndex",
+        "title": "VS Turbo: Clear Index",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.resumeIndexing",
-        "title": "CodePulse: Resume Indexing",
-        "category": "CodePulse"
+        "command": "vsturbo.pauseIndexing",
+        "title": "VS Turbo: Pause Indexing",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.quickSearch",
-        "title": "CodePulse: Fast Quick Search",
-        "category": "CodePulse"
+        "command": "vsturbo.resumeIndexing",
+        "title": "VS Turbo: Resume Indexing",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.fastDefinition",
-        "title": "CodePulse: Fast Go to Definition",
-        "category": "CodePulse"
+        "command": "vsturbo.quickSearch",
+        "title": "VS Turbo: Fast Quick Search",
+        "category": "VS Turbo"
       },
       {
-        "command": "codePulse.fastReferences",
-        "title": "CodePulse: Fast Find References",
-        "category": "CodePulse"
+        "command": "vsturbo.searchEverywhere",
+        "title": "VS Turbo: Search Everywhere",
+        "category": "VS Turbo"
+      },
+      {
+        "command": "vsturbo.searchClass",
+        "title": "VS Turbo: Search Class",
+        "category": "VS Turbo"
+      },
+      {
+        "command": "vsturbo.searchFile",
+        "title": "VS Turbo: Search File",
+        "category": "VS Turbo"
+      },
+      {
+        "command": "vsturbo.searchSymbol",
+        "title": "VS Turbo: Search Symbol",
+        "category": "VS Turbo"
+      },
+      {
+        "command": "vsturbo.searchText",
+        "title": "VS Turbo: Search Text",
+        "category": "VS Turbo"
+      },
+      {
+        "command": "vsturbo.searchClasses",
+        "title": "VS Turbo: Search Classes",
+        "category": "VS Turbo"
+      },
+      {
+        "command": "vsturbo.searchFiles",
+        "title": "VS Turbo: Search Files",
+        "category": "VS Turbo"
+      },
+      {
+        "command": "vsturbo.searchSymbols",
+        "title": "VS Turbo: Search Symbols",
+        "category": "VS Turbo"
+      },
+      {
+        "command": "vsturbo.searchActions",
+        "title": "VS Turbo: Search Actions",
+        "category": "VS Turbo"
+      },
+      {
+        "command": "vsturbo.configureSearchShortcuts",
+        "title": "VS Turbo: Configure Search Shortcuts",
+        "category": "VS Turbo"
+      },
+      {
+        "command": "vsturbo.fastDefinition",
+        "title": "VS Turbo: Fast Go to Definition",
+        "category": "VS Turbo"
+      },
+      {
+        "command": "vsturbo.fastReferences",
+        "title": "VS Turbo: Fast Find References",
+        "category": "VS Turbo"
       }
     ],
     "configuration": {
-      "title": "CodePulse",
+      "title": "VS Turbo",
       "properties": {
-        "codePulse.enabled": {
+        "vsturbo.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable or disable CodePulse extension."
+          "description": "Enable or disable VS Turbo extension."
         },
-        "codePulse.logging.level": {
+        "vsturbo.logging.level": {
           "type": "string",
           "enum": [
             "debug",
@@ -134,80 +186,158 @@
             "error"
           ],
           "default": "info",
-          "description": "CodePulse logging level."
+          "description": "VS Turbo logging level."
         },
-        "codePulse.diagnostics.enabled": {
+        "vsturbo.diagnostics.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Enable workspace performance diagnostics."
         },
-        "codePulse.diagnostics.slowThresholdMs": {
+        "vsturbo.diagnostics.slowThresholdMs": {
           "type": "number",
           "default": 500,
           "description": "Threshold in ms to flag navigation requests as slow."
         },
-        "codePulse.index.enabled": {
+        "vsturbo.index.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Enable local symbol and file indexing."
         },
-        "codePulse.index.generatedFiles": {
+        "vsturbo.index.generatedFiles": {
           "type": "boolean",
           "default": false,
           "description": "Whether to index generated files."
         },
-        "codePulse.index.maxFileSizeBytes": {
+        "vsturbo.index.maxFileSizeBytes": {
           "type": "number",
           "default": 1048576,
           "description": "Maximum file size to index in bytes (default 1MB)."
         },
-        "codePulse.warmup.enabled": {
+        "vsturbo.warmup.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Enable background project warmup."
         },
-        "codePulse.warmup.onStartup": {
+        "vsturbo.warmup.onStartup": {
           "type": "boolean",
           "default": true,
           "description": "Run warmup automatically on workspace startup."
         },
-        "codePulse.warmup.concurrency": {
+        "vsturbo.warmup.concurrency": {
           "type": "number",
           "default": 2,
           "description": "Concurrent files to warm up in background."
         },
-        "codePulse.warmup.useGitChanges": {
+        "vsturbo.warmup.useGitChanges": {
           "type": "boolean",
           "default": true,
           "description": "Prioritize git changed files during warmup."
         },
-        "codePulse.warmup.useRecentFiles": {
+        "vsturbo.warmup.useRecentFiles": {
           "type": "boolean",
           "default": true,
           "description": "Prioritize recently visited files during warmup."
         },
-        "codePulse.search.useRipgrep": {
+        "vsturbo.search.useRipgrep": {
           "type": "boolean",
           "default": true,
           "description": "Use ripgrep for fast text search."
         },
-        "codePulse.navigation.mode": {
+        "vsturbo.navigation.mode": {
           "type": "string",
           "enum": [
             "native",
             "hybrid",
+            "vsturbo",
             "codepulse"
           ],
           "default": "native",
           "description": "Navigation engine mode."
         },
-        "codePulse.navigation.trackHistory": {
+        "vsturbo.navigation.trackHistory": {
           "type": "boolean",
           "default": true,
           "description": "Record navigation history for predictive warmup."
+        },
+        "vsturbo.search.dialogMode": {
+          "type": "string",
+          "enum": [
+            "floatingDialog",
+            "editorTab"
+          ],
+          "default": "floatingDialog",
+          "description": "Presentation mode for Search Everywhere: 'floatingDialog' (Android Studio-style floating top-center dialog overlay, recommended) or 'editorTab' (Webview tab)."
+        },
+        "vsturbo.search.useNativeQuickPick": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use native VS Code floating QuickPick dialog (Android Studio style) instead of editor tab Webview."
+        },
+        "vsturbo.search.keymap": {
+          "type": "string",
+          "enum": [
+            "off",
+            "androidStudio"
+          ],
+          "default": "androidStudio",
+          "description": "Android Studio-compatible search shortcuts (Cmd+O on macOS / Ctrl+O on Windows, Ctrl+Shift+N, Ctrl+Alt+Shift+N, etc.)."
+        },
+        "vsturbo.search.defaultMode": {
+          "type": "string",
+          "enum": [
+            "all",
+            "class",
+            "file",
+            "symbol",
+            "text"
+          ],
+          "default": "all",
+          "description": "Default search mode when opening Search Everywhere."
         }
       }
-    }
+    },
+    "keybindings": [
+      {
+        "command": "vsturbo.searchEverywhere",
+        "key": "ctrl+o",
+        "mac": "cmd+o"
+      },
+      {
+        "command": "vsturbo.searchEverywhere",
+        "key": "ctrl+shift+alt+f",
+        "mac": "cmd+shift+alt+f"
+      },
+      {
+        "command": "vsturbo.searchClass",
+        "key": "ctrl+n",
+        "mac": "cmd+o",
+        "when": "config.vsturbo.search.keymap == 'androidStudio'"
+      },
+      {
+        "command": "vsturbo.searchFile",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+o",
+        "when": "config.vsturbo.search.keymap == 'androidStudio'"
+      },
+      {
+        "command": "vsturbo.searchSymbol",
+        "key": "ctrl+alt+shift+n",
+        "mac": "cmd+alt+o",
+        "when": "config.vsturbo.search.keymap == 'androidStudio'"
+      },
+      {
+        "command": "vsturbo.searchText",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f",
+        "when": "config.vsturbo.search.keymap == 'androidStudio'"
+      },
+      {
+        "command": "vsturbo.searchActions",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "config.vsturbo.search.keymap == 'androidStudio'"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run build:prod",
@@ -222,7 +352,7 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test": "npm run compile && npm run test:unit",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package --no-dependencies --allow-missing-repository"
   },
   "devDependencies": {
     "@types/node": "^20.14.9",
@@ -230,10 +360,10 @@
     "@typescript-eslint/eslint-plugin": "^7.14.1",
     "@typescript-eslint/parser": "^7.14.1",
     "@vscode/vsce": "^3.2.1",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.28.2",
     "eslint": "^8.57.0",
     "prettier": "^3.9.9",
     "typescript": "^5.5.2",
-    "vitest": "^2.1.8"
+    "vitest": "^4.1.11"
   }
 }

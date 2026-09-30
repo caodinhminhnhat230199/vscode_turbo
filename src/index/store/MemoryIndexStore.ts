@@ -1,6 +1,18 @@
 import { FileRecord, SymbolRecord, ReferenceRecord } from '../models';
 import { IndexStore, IndexStoreStats, SymbolSearchOptions } from './IndexStore';
 
+function isSubsequence(query: string, target: string): boolean {
+  let q = 0;
+  let t = 0;
+  while (q < query.length && t < target.length) {
+    if (query.charCodeAt(q) === target.charCodeAt(t)) {
+      q++;
+    }
+    t++;
+  }
+  return q === query.length;
+}
+
 export class MemoryIndexStore implements IndexStore {
   private initialized = false;
   private readonly schemaVersion = 1;
@@ -67,6 +79,55 @@ export class MemoryIndexStore implements IndexStore {
   public async getAllFiles(): Promise<FileRecord[]> {
     this.assertInitialized();
     return Array.from(this.filesById.values()).map((f) => ({ ...f }));
+  }
+
+  public async searchFiles(
+    query: string,
+    options?: {
+      limit?: number;
+      pathFilter?: string;
+      extFilter?: string;
+      workspaceRoots?: string[];
+    }
+  ): Promise<FileRecord[]> {
+    this.assertInitialized();
+    const limit = options?.limit ?? 100;
+    const lowerQuery = query.toLowerCase().trim();
+    const lowerPath = options?.pathFilter?.toLowerCase();
+    const lowerExt = options?.extFilter?.toLowerCase();
+    const roots = options?.workspaceRoots?.map((r) => r.replace(/\\/g, '/').toLowerCase());
+
+    const results: FileRecord[] = [];
+    for (const file of this.filesById.values()) {
+      if (results.length >= limit) {
+        break;
+      }
+      if (roots && roots.length > 0 && !roots.some((r) => file.path.toLowerCase().startsWith(r))) {
+        continue;
+      }
+      if (lowerPath && !file.relativePath.toLowerCase().includes(lowerPath)) {
+        continue;
+      }
+      if (lowerExt) {
+        const ext = file.path.split('.').pop()?.toLowerCase();
+        if (ext !== lowerExt) {
+          continue;
+        }
+      }
+      if (!lowerQuery) {
+        results.push({ ...file });
+        continue;
+      }
+      const name = file.path.split('/').pop()?.toLowerCase() ?? '';
+      if (
+        name.includes(lowerQuery) ||
+        file.relativePath.toLowerCase().includes(lowerQuery) ||
+        isSubsequence(lowerQuery, name)
+      ) {
+        results.push({ ...file });
+      }
+    }
+    return results;
   }
 
   public async getFileCount(): Promise<number> {

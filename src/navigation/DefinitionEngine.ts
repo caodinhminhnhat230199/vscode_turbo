@@ -218,7 +218,7 @@ export class DefinitionEngine {
   public async navigate(
     document: vscode.TextDocument,
     position: vscode.Position,
-    mode: 'native' | 'hybrid' | 'codepulse' = 'native'
+    mode: 'native' | 'hybrid' | 'vsturbo' | 'codepulse' = 'native'
   ): Promise<boolean> {
     if (mode === 'native') {
       const nativeLocs = await this.findNativeDefinition(document.uri, position);
@@ -269,7 +269,7 @@ export class DefinitionEngine {
       return false;
     }
 
-    if (mode === 'codepulse') {
+    if (mode === 'vsturbo' || mode === 'codepulse') {
       // Local first, fallback to native when no candidate
       const localCandidates = await this.findLocalDefinition(document, position);
       const best = localCandidates[0];
@@ -318,7 +318,7 @@ export class DefinitionEngine {
           // Minimal notification without jarring jump-back
           const jumpAction = 'Jump to Verified Definition';
           const choice = await vscode.window.showInformationMessage(
-            `CodePulse: Language server refined definition location for "${localTarget.symbol.name}".`,
+            `VS Turbo: Language server refined definition location for "${localTarget.symbol.name}".`,
             jumpAction
           );
           if (choice === jumpAction) {

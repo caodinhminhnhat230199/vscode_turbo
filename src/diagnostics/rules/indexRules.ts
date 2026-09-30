@@ -72,7 +72,7 @@ export class IndexRule001 implements DiagnosticRule, OptimizationRule {
             evidence,
             recommendation: createRecommendation({
               id: 'REC_INDEX_EXCLUDE_GENERATED',
-              type: 'codePulseSetting',
+              type: 'vsTurboSetting',
               title: 'Exclude high-churn generated folders from index and watcher',
               description:
                 'Exclude active output directories and debounce rapid indexing events to reduce disk I/O and CPU usage.',

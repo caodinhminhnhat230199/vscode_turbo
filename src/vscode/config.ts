@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { LogLevel } from '../core/logging/LogLevel';
 import { logger } from '../core/logging/Logger';
 
-export interface CodePulseConfig {
+export interface VsTurboConfig {
   enabled: boolean;
   loggingLevel: LogLevel;
   diagnosticsEnabled: boolean;
@@ -16,11 +16,17 @@ export interface CodePulseConfig {
   warmupUseGitChanges: boolean;
   warmupUseRecentFiles: boolean;
   searchUseRipgrep: boolean;
-  navigationMode: 'native' | 'hybrid' | 'codepulse';
+  searchUseNativeQuickPick: boolean;
+  searchDialogMode: 'floatingDialog' | 'editorTab';
+  searchKeymap: 'off' | 'androidStudio';
+  searchDefaultMode: 'all' | 'class' | 'file' | 'symbol' | 'text';
+  navigationMode: 'native' | 'hybrid' | 'vsturbo' | 'codepulse';
   navigationTrackHistory: boolean;
 }
 
-export const DEFAULT_CONFIG: CodePulseConfig = {
+export type CodePulseConfig = VsTurboConfig;
+
+export const DEFAULT_CONFIG: VsTurboConfig = {
   enabled: true,
   loggingLevel: 'info',
   diagnosticsEnabled: true,
@@ -34,14 +40,20 @@ export const DEFAULT_CONFIG: CodePulseConfig = {
   warmupUseGitChanges: true,
   warmupUseRecentFiles: true,
   searchUseRipgrep: true,
+  searchUseNativeQuickPick: true,
+  searchDialogMode: 'floatingDialog',
+  searchKeymap: 'androidStudio',
+  searchDefaultMode: 'all',
   navigationMode: 'native',
   navigationTrackHistory: true,
 };
 
-export class ConfigService {
+import { IConfigurationService } from '../core/interfaces/IConfigurationService';
+
+export class ConfigService implements IConfigurationService {
   private static instance: ConfigService | null = null;
-  private currentConfig: CodePulseConfig = { ...DEFAULT_CONFIG };
-  private changeEmitter = new vscode.EventEmitter<CodePulseConfig>();
+  private currentConfig: VsTurboConfig = { ...DEFAULT_CONFIG };
+  private changeEmitter = new vscode.EventEmitter<VsTurboConfig>();
   public readonly onDidChangeConfig = this.changeEmitter.event;
 
   public static getInstance(): ConfigService {
@@ -55,21 +67,49 @@ export class ConfigService {
     this.reloadConfig();
     context.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('codePulse')) {
+        if (e.affectsConfiguration('vsturbo') || e.affectsConfiguration('codePulse')) {
           this.reloadConfig();
         }
       })
     );
   }
 
-  public getConfig(): CodePulseConfig {
+  public getConfig(): VsTurboConfig {
     return { ...this.currentConfig };
   }
 
-  public reloadConfig(): CodePulseConfig {
-    const ws = vscode.workspace.getConfiguration('codePulse');
+  public get<T>(section: string, defaultValue?: T): T {
+    const ws = vscode.workspace.getConfiguration('vsturbo');
+    const val = ws.get<T>(section);
+    if (val !== undefined) {
+      return val;
+    }
+    const legacyWs = vscode.workspace.getConfiguration('codePulse');
+    return legacyWs.get<T>(section, defaultValue as T);
+  }
 
-    const rawSlowThreshold = ws.get<number>(
+  public async update(
+    section: string,
+    value: unknown,
+    target?: vscode.ConfigurationTarget
+  ): Promise<void> {
+    const ws = vscode.workspace.getConfiguration('vsturbo');
+    await ws.update(section, value, target ?? vscode.ConfigurationTarget.Global);
+  }
+
+  public reloadConfig(): VsTurboConfig {
+    const ws = vscode.workspace.getConfiguration('vsturbo');
+    const legacyWs = vscode.workspace.getConfiguration('codePulse');
+
+    const getVal = <T>(sec: string, def: T): T => {
+      const v = ws.get<T>(sec);
+      if (v !== undefined) {
+        return v;
+      }
+      return legacyWs.get<T>(sec, def);
+    };
+
+    const rawSlowThreshold = getVal<number>(
       'diagnostics.slowThresholdMs',
       DEFAULT_CONFIG.slowThresholdMs
     );
@@ -78,7 +118,7 @@ export class ConfigService {
         ? rawSlowThreshold
         : DEFAULT_CONFIG.slowThresholdMs;
 
-    const rawMaxFileSize = ws.get<number>(
+    const rawMaxFileSize = getVal<number>(
       'index.maxFileSizeBytes',
       DEFAULT_CONFIG.maxFileSizeBytes
     );
@@ -87,48 +127,61 @@ export class ConfigService {
         ? rawMaxFileSize
         : DEFAULT_CONFIG.maxFileSizeBytes;
 
-    const rawConcurrency = ws.get<number>('warmup.concurrency', DEFAULT_CONFIG.warmupConcurrency);
+    const rawConcurrency = getVal<number>('warmup.concurrency', DEFAULT_CONFIG.warmupConcurrency);
     const warmupConcurrency =
       typeof rawConcurrency === 'number' && rawConcurrency >= 1 && rawConcurrency <= 8
         ? rawConcurrency
         : DEFAULT_CONFIG.warmupConcurrency;
 
-    const loggingLevel = ws.get<LogLevel>('logging.level', DEFAULT_CONFIG.loggingLevel);
+    const loggingLevel = getVal<LogLevel>('logging.level', DEFAULT_CONFIG.loggingLevel);
     logger.setLevel(loggingLevel);
 
-    const navMode = ws.get<'native' | 'hybrid' | 'codepulse'>(
+    const navMode = getVal<'native' | 'hybrid' | 'vsturbo' | 'codepulse'>(
       'navigation.mode',
       DEFAULT_CONFIG.navigationMode
     );
-    const navigationMode = ['native', 'hybrid', 'codepulse'].includes(navMode)
+    const navigationMode = ['native', 'hybrid', 'vsturbo', 'codepulse'].includes(navMode)
       ? navMode
       : DEFAULT_CONFIG.navigationMode;
 
     this.currentConfig = {
-      enabled: ws.get<boolean>('enabled', DEFAULT_CONFIG.enabled),
+      enabled: getVal<boolean>('enabled', DEFAULT_CONFIG.enabled),
       loggingLevel,
-      diagnosticsEnabled: ws.get<boolean>('diagnostics.enabled', DEFAULT_CONFIG.diagnosticsEnabled),
+      diagnosticsEnabled: getVal<boolean>('diagnostics.enabled', DEFAULT_CONFIG.diagnosticsEnabled),
       slowThresholdMs,
-      indexEnabled: ws.get<boolean>('index.enabled', DEFAULT_CONFIG.indexEnabled),
-      indexGeneratedFiles: ws.get<boolean>(
+      indexEnabled: getVal<boolean>('index.enabled', DEFAULT_CONFIG.indexEnabled),
+      indexGeneratedFiles: getVal<boolean>(
         'index.generatedFiles',
         DEFAULT_CONFIG.indexGeneratedFiles
       ),
       maxFileSizeBytes,
-      warmupEnabled: ws.get<boolean>('warmup.enabled', DEFAULT_CONFIG.warmupEnabled),
-      warmupOnStartup: ws.get<boolean>('warmup.onStartup', DEFAULT_CONFIG.warmupOnStartup),
+      warmupEnabled: getVal<boolean>('warmup.enabled', DEFAULT_CONFIG.warmupEnabled),
+      warmupOnStartup: getVal<boolean>('warmup.onStartup', DEFAULT_CONFIG.warmupOnStartup),
       warmupConcurrency,
-      warmupUseGitChanges: ws.get<boolean>(
+      warmupUseGitChanges: getVal<boolean>(
         'warmup.useGitChanges',
         DEFAULT_CONFIG.warmupUseGitChanges
       ),
-      warmupUseRecentFiles: ws.get<boolean>(
+      warmupUseRecentFiles: getVal<boolean>(
         'warmup.useRecentFiles',
         DEFAULT_CONFIG.warmupUseRecentFiles
       ),
-      searchUseRipgrep: ws.get<boolean>('search.useRipgrep', DEFAULT_CONFIG.searchUseRipgrep),
+      searchUseRipgrep: getVal<boolean>('search.useRipgrep', DEFAULT_CONFIG.searchUseRipgrep),
+      searchUseNativeQuickPick: getVal<boolean>(
+        'search.useNativeQuickPick',
+        DEFAULT_CONFIG.searchUseNativeQuickPick
+      ),
+      searchDialogMode: getVal<'floatingDialog' | 'editorTab'>(
+        'search.dialogMode',
+        DEFAULT_CONFIG.searchDialogMode
+      ),
+      searchKeymap: getVal<'off' | 'androidStudio'>('search.keymap', DEFAULT_CONFIG.searchKeymap),
+      searchDefaultMode: getVal<'all' | 'class' | 'file' | 'symbol' | 'text'>(
+        'search.defaultMode',
+        DEFAULT_CONFIG.searchDefaultMode
+      ),
       navigationMode,
-      navigationTrackHistory: ws.get<boolean>(
+      navigationTrackHistory: getVal<boolean>(
         'navigation.trackHistory',
         DEFAULT_CONFIG.navigationTrackHistory
       ),

@@ -14,5 +14,9 @@ AGENTS.md
 .github/**
 dist/**/*.map
 *.vsix
+*.log
 plan.md
 task.md
+plan_search.md
+task_search.md
+tasks/**

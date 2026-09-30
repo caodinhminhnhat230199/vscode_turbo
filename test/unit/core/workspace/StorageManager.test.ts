@@ -36,7 +36,7 @@ describe('StorageManager', () => {
   });
 
   it('initializes schema version on fresh workspace', () => {
-    expect(mockWorkspace.get('codepulse.storage.version')).toBe(1);
+    expect(mockWorkspace.get('vsturbo.storage.version')).toBe(1);
   });
 
   it('stores and retrieves workspace state', async () => {

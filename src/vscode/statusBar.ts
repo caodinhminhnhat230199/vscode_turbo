@@ -24,7 +24,7 @@ export class StatusBarController implements vscode.Disposable {
 
   private constructor() {
     this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    this.statusBarItem.command = 'codePulse.openDashboard';
+    this.statusBarItem.command = 'vsturbo.openDashboard';
     this.update();
     this.statusBarItem.show();
   }
@@ -41,19 +41,19 @@ export class StatusBarController implements vscode.Disposable {
   private update(): void {
     switch (this.currentState.kind) {
       case 'ready':
-        this.statusBarItem.text = '$(pulse) CodePulse';
-        this.statusBarItem.tooltip = 'CodePulse: Ready (Click to open dashboard)';
+        this.statusBarItem.text = '$(zap) VS Turbo';
+        this.statusBarItem.tooltip = 'VS Turbo: Ready (Click to open dashboard)';
         this.statusBarItem.backgroundColor = undefined;
         break;
 
       case 'scanning':
-        this.statusBarItem.text = '$(sync~spin) CodePulse: Scanning';
+        this.statusBarItem.text = '$(sync~spin) VS Turbo: Scanning';
         this.statusBarItem.tooltip = 'Scanning workspace structure...';
         this.statusBarItem.backgroundColor = undefined;
         break;
 
       case 'benchmarking':
-        this.statusBarItem.text = `$(watch) CodePulse: Benchmarking ${this.currentState.operation ?? ''}`;
+        this.statusBarItem.text = `$(watch) VS Turbo: Benchmarking ${this.currentState.operation ?? ''}`;
         this.statusBarItem.tooltip = 'Running latency benchmark...';
         this.statusBarItem.backgroundColor = undefined;
         break;
@@ -63,7 +63,7 @@ export class StatusBarController implements vscode.Disposable {
           this.currentState.progressPercent !== undefined
             ? ` ${this.currentState.progressPercent}%`
             : '';
-        this.statusBarItem.text = `$(database) CodePulse: Indexing${indexPct}`;
+        this.statusBarItem.text = `$(database) VS Turbo: Indexing${indexPct}`;
         this.statusBarItem.tooltip = 'Local file and symbol indexing in progress...';
         this.statusBarItem.backgroundColor = undefined;
         break;
@@ -73,19 +73,19 @@ export class StatusBarController implements vscode.Disposable {
           this.currentState.progressPercent !== undefined
             ? ` ${this.currentState.progressPercent}%`
             : '';
-        this.statusBarItem.text = `$(flame) CodePulse: Warmup${warmupPct}`;
+        this.statusBarItem.text = `$(flame) VS Turbo: Warmup${warmupPct}`;
         this.statusBarItem.tooltip = 'Warming up priority files for fast navigation...';
         this.statusBarItem.backgroundColor = undefined;
         break;
 
       case 'paused':
-        this.statusBarItem.text = '$(debug-pause) CodePulse: Paused';
-        this.statusBarItem.tooltip = `CodePulse paused: ${this.currentState.reason ?? 'User activity detected'}`;
+        this.statusBarItem.text = '$(debug-pause) VS Turbo: Paused';
+        this.statusBarItem.tooltip = `VS Turbo paused: ${this.currentState.reason ?? 'User activity detected'}`;
         this.statusBarItem.backgroundColor = undefined;
         break;
 
       case 'issues':
-        this.statusBarItem.text = `$(warning) CodePulse: ${this.currentState.count} Issues`;
+        this.statusBarItem.text = `$(warning) VS Turbo: ${this.currentState.count} Issues`;
         this.statusBarItem.tooltip = `Detected ${this.currentState.count} performance issues in workspace configuration`;
         this.statusBarItem.backgroundColor = new vscode.ThemeColor(
           'statusBarItem.warningBackground'
@@ -93,8 +93,8 @@ export class StatusBarController implements vscode.Disposable {
         break;
 
       case 'error':
-        this.statusBarItem.text = '$(error) CodePulse: Error';
-        this.statusBarItem.tooltip = `CodePulse error: ${this.currentState.message}`;
+        this.statusBarItem.text = '$(error) VS Turbo: Error';
+        this.statusBarItem.tooltip = `VS Turbo error: ${this.currentState.message}`;
         this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         break;
     }

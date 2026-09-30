@@ -7,6 +7,10 @@ export interface SearchOptions {
   activeFileUri?: vscode.Uri;
   recentFilePaths?: string[];
   includeIgnored?: boolean;
+  kindFilter?: string;
+  pathFilter?: string;
+  extFilter?: string;
+  langFilter?: string;
 }
 
 export interface TextSearchOptions extends SearchOptions {

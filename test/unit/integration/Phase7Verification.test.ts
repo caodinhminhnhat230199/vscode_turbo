@@ -59,7 +59,7 @@ describe('P7.9 — Phase 7 Fast Navigation Verification', () => {
 
   it('P7.1: Navigation mode config defaults to native and accepts valid modes', () => {
     expect(DEFAULT_CONFIG.navigationMode).toBe('native');
-    const validModes = ['native', 'hybrid', 'codepulse'];
+    const validModes = ['native', 'hybrid', 'vsturbo', 'codepulse'];
     for (const mode of validModes) {
       expect(validModes).toContain(mode);
     }

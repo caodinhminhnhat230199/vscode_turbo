@@ -10,6 +10,27 @@ import { logger } from '../../core/logging/Logger';
 import { isWorkspaceTrusted } from '../../vscode/workspaceTrust';
 import { configService } from '../../vscode/config';
 
+export interface VimgrepMatch {
+  filePath: string;
+  line: number;
+  column: number;
+  lineText: string;
+}
+
+export function parseVimgrepLine(line: string): VimgrepMatch | undefined {
+  const match = line.match(/^(.*?):(\d+):(\d+):(.*)$/);
+  if (!match) {
+    return undefined;
+  }
+
+  return {
+    filePath: match[1],
+    line: Number.parseInt(match[2], 10),
+    column: Number.parseInt(match[3], 10),
+    lineText: match[4],
+  };
+}
+
 export class RipgrepEngine {
   private static cachedRgPath: string | null | undefined = undefined;
   private static activeProcesses = new Set<ChildProcess>();
@@ -210,11 +231,27 @@ export class RipgrepEngine {
         }
 
         // Format: <path>:<line>:<col>:<lineText>
-        const match = line.match(/^([^:]+):(\d+):(\d+):(.*)$/);
+        const match = parseVimgrepLine(line);
         if (match) {
-          const [, filePath, lineStr, colStr, lineText] = match;
-          const lineNum = Math.max(0, parseInt(lineStr, 10) - 1);
-          const colNum = Math.max(0, parseInt(colStr, 10) - 1);
+          const { filePath, line: oneBasedLine, column: oneBasedColumn, lineText } = match;
+
+          if (
+            options?.pathFilter &&
+            !filePath.toLowerCase().includes(options.pathFilter.toLowerCase())
+          ) {
+            return;
+          }
+
+          if (
+            options?.extFilter &&
+            path.extname(filePath).replace(/^\./, '').toLowerCase() !==
+              options.extFilter.toLowerCase()
+          ) {
+            return;
+          }
+
+          const lineNum = Math.max(0, oneBasedLine - 1);
+          const colNum = Math.max(0, oneBasedColumn - 1);
 
           results.push({
             id: `text:${filePath}:${lineNum}:${colNum}`,
@@ -339,6 +376,19 @@ export class RipgrepEngine {
         if (entry.isDirectory()) {
           this.collectFilesRecursive(fullPath, outFiles, options);
         } else if (entry.isFile()) {
+          if (
+            options?.pathFilter &&
+            !fullPath.toLowerCase().includes(options.pathFilter.toLowerCase())
+          ) {
+            continue;
+          }
+          if (
+            options?.extFilter &&
+            path.extname(fullPath).replace(/^\./, '').toLowerCase() !==
+              options.extFilter.toLowerCase()
+          ) {
+            continue;
+          }
           outFiles.push(fullPath);
         }
       }

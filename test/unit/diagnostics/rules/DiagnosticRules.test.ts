@@ -103,7 +103,7 @@ describe('Diagnostic Rules', () => {
     expect(findings[0].id).toBe('WORKSPACE_002');
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].summary).toContain('50%');
-    expect(findings[0].recommendation?.changes?.[0].section).toBe('codePulse.index.generatedFiles');
+    expect(findings[0].recommendation?.changes?.[0].section).toBe('vsturbo.index.generatedFiles');
   });
 
   it('FILE_001 triggers on very large source file (> 1MB)', () => {
